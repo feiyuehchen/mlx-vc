@@ -1,0 +1,70 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mlx-vc"
+dynamic = ["version"]
+description = "Voice conversion on Apple Silicon using MLX"
+readme = "README.md"
+license = "MIT"
+authors = [
+    {name = "Feiyueh Chen"}
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: MacOS",
+]
+requires-python = ">=3.10"
+
+dependencies = [
+    "mlx>=0.25.2",
+    "numpy>=1.26.4",
+    "huggingface_hub>=1.0",
+    "sounddevice==0.5.3",
+    "librosa==0.11.0",
+    "tqdm>=4.67.1",
+    "safetensors>=0.4.0",
+]
+
+[project.optional-dependencies]
+cosyvoice = [
+    "mlx-audio[tts]>=0.4.3",
+]
+
+realtime = [
+    "webrtcvad>=2.0.10",
+]
+
+all = [
+    "mlx-audio[tts]>=0.4.3",
+    "webrtcvad>=2.0.10",
+]
+
+dev = [
+    "pytest>=7.0.0",
+    "black>=24.2.0",
+    "isort>=5.13.2",
+    "pre-commit>=3.7.0",
+]
+
+[project.scripts]
+"mlx_vc.generate" = "mlx_vc.generate:main"
+
+[project.urls]
+Homepage = "https://github.com/feiyuehchen/mlx-vc"
+Repository = "https://github.com/feiyuehchen/mlx-vc"
+
+[tool.setuptools.dynamic]
+version = {attr = "mlx_vc.version.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mlx_vc", "mlx_vc.*"]
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+
+[tool.isort]
+profile = "black"
