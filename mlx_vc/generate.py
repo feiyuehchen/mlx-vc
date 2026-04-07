@@ -13,6 +13,11 @@ AVAILABLE_MODELS = {
         "description": "CosyVoice3/Chatterbox zero-shot voice cloning (via mlx-audio)",
         "default_repo": "mlx-community/chatterbox-fp16",
     },
+    "seed-vc": {
+        "class": "mlx_vc.models.seed_vc.SeedVC",
+        "description": "Seed-VC zero-shot voice conversion (Whisper + DiT + BigVGAN)",
+        "default_repo": "Plachta/Seed-VC",
+    },
 }
 
 

@@ -4,25 +4,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-mlx-vc is a voice conversion library for Apple Silicon using MLX. It provides a unified API for multiple VC model backends.
+mlx-vc is a voice conversion library for Apple Silicon. It provides a unified API for multiple VC model backends. Models run via subprocess isolation to avoid dependency conflicts.
 
 ## Build & Install
 
 ```bash
-# Create venv and install with uv
 uv venv && source .venv/bin/activate
 uv pip install -e ".[all,dev]"
-
-# Modular installs
-uv pip install -e ".[cosyvoice]"   # CosyVoice3/Chatterbox only
-uv pip install -e ".[realtime]"    # Real-time demo deps
 ```
+
+Seed-VC additionally requires: `torch torchaudio einops descript-audio-codec munch`
+and the reference repo cloned to `../seed-vc-ref/`.
 
 ## Testing
 
 ```bash
 pytest -s mlx_vc/tests/
-pytest -s mlx_vc/tests/test_imports.py   # Single test file
 ```
 
 ## Linting & Formatting
@@ -31,31 +28,35 @@ pytest -s mlx_vc/tests/test_imports.py   # Single test file
 pre-commit run --all-files   # Black (line-length=88) + isort (black profile)
 ```
 
-## CLI
-
-```bash
-mlx_vc.generate --model cosyvoice --text "Hello" --ref_audio speaker.wav
-```
-
 ## Architecture
 
-- `mlx_vc/models/` — Each VC model in its own subpackage (e.g., `cosyvoice/`)
-- `mlx_vc/generate.py` — Unified CLI with `AVAILABLE_MODELS` registry
-- `mlx_vc/audio_io.py` — Audio load/save utilities
-- `mlx_vc/utils.py` — HuggingFace model download, config loading
-- `mlx_vc/demo/` — Real-time VC demos
-- `scripts/` — Weight conversion tools
+```
+mlx_vc/
+├── models/           # Model wrappers (unified API)
+│   ├── cosyvoice/    # TTS + voice cloning via mlx-audio
+│   └── seed_vc/      # Zero-shot VC (Whisper + DiT + BigVGAN)
+├── backends/         # Inference scripts (run via subprocess)
+│   └── seed_vc_infer.py
+├── backend.py        # Subprocess runner for model backends
+├── generate.py       # Unified CLI + AVAILABLE_MODELS registry
+├── audio_io.py       # Audio load/save
+└── utils.py          # HuggingFace model download, config loading
+```
+
+**Key design**: Each model has a wrapper in `models/` (Python API) and optionally
+an inference script in `backends/` (subprocess isolation). The subprocess approach
+lets models with conflicting deps coexist in one package.
 
 ## Adding a New Model
 
-1. Create `mlx_vc/models/<model_name>/` with `__init__.py` and implementation
-2. Expose a class with `convert(text, ref_audio, ...) -> np.ndarray` method
-3. Register in `AVAILABLE_MODELS` dict in `mlx_vc/generate.py`
+1. Create `mlx_vc/models/<name>/` with a class exposing `convert(source_audio, ref_audio) -> np.ndarray`
+2. If the model has heavy/conflicting deps, create `mlx_vc/backends/<name>_infer.py`
+3. Register in `AVAILABLE_MODELS` in `generate.py` and in `BACKENDS` in `backend.py`
 4. Add tests in `mlx_vc/tests/`
 
-## Key Dependencies
+## Supported Models
 
-- `mlx>=0.25.2` — Core ML framework
-- `mlx-audio[tts]` — CosyVoice3 backend (optional)
-- `sounddevice` — Audio playback
-- `librosa` — Audio loading/resampling
+| Model | Type | Backend | Notes |
+|-------|------|---------|-------|
+| CosyVoice3/Chatterbox | TTS + voice cloning | In-process (mlx-audio) | Text input only |
+| Seed-VC | Zero-shot VC | Subprocess (PyTorch MPS) | True audio-to-audio VC |
