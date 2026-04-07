@@ -29,7 +29,7 @@ dependencies = [
 
 [project.optional-dependencies]
 cosyvoice = [
-    "mlx-audio[tts]>=0.4.3",
+    "mlx-audio[tts]>=0.4.0",
 ]
 
 realtime = [
@@ -37,7 +37,7 @@ realtime = [
 ]
 
 all = [
-    "mlx-audio[tts]>=0.4.3",
+    "mlx-audio[tts]>=0.4.0",
     "webrtcvad>=2.0.10",
 ]
 

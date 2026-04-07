@@ -86,6 +86,12 @@ class CosyVoiceVC:
 
             ref_audio = load_audio(ref_audio, sample_rate=self.sample_rate)
 
+        # Convert to mlx array (mlx-audio expects mlx arrays for ref_audio)
+        import mlx.core as mx
+
+        if isinstance(ref_audio, np.ndarray):
+            ref_audio = mx.array(ref_audio)
+
         # Collect all audio chunks
         chunks = []
         for result in self.model.generate(
@@ -130,6 +136,11 @@ class CosyVoiceVC:
             from mlx_vc.audio_io import load_audio
 
             ref_audio = load_audio(ref_audio, sample_rate=self.sample_rate)
+
+        import mlx.core as mx
+
+        if isinstance(ref_audio, np.ndarray):
+            ref_audio = mx.array(ref_audio)
 
         for result in self.model.generate(
             text=text,
