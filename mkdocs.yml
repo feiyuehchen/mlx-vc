@@ -1,0 +1,47 @@
+# MkDocs 設定：build 後會生成一個靜態網站，
+# 使用者可以在瀏覽器看到完整文件。
+# 本地預覽：mkdocs serve
+# 部署：mkdocs gh-deploy
+site_name: mlx-vc
+site_description: Voice conversion on Apple Silicon using MLX
+site_url: https://feiyuehchen.github.io/mlx-vc/
+repo_url: https://github.com/feiyuehchen/mlx-vc
+repo_name: feiyuehchen/mlx-vc
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - navigation.sections
+    - navigation.expand
+    - search.suggest
+  palette:
+    - scheme: default
+      primary: indigo
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quick Start: getting-started/quickstart.md
+  - Models:
+      - Overview: models/index.md
+      - Seed-VC: models/seed-vc.md
+      - OpenVoice V2: models/openvoice.md
+      - kNN-VC: models/knn-vc.md
+      - CosyVoice3: models/cosyvoice.md
+      - RVC: models/rvc.md
+      - MeanVC: models/meanvc.md
+  - Guides:
+      - Real-time Demo: guides/realtime.md
+      - Server API: guides/server.md
+  - Contributing:
+      - Development Setup: contributing/dev-setup.md
+      - Adding a Model: contributing/adding-a-model.md
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - admonition
+  - tables

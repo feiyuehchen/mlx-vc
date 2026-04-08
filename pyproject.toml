@@ -36,20 +36,35 @@ realtime = [
     "webrtcvad>=2.0.10",
 ]
 
+server = [
+    "fastapi>=0.95.0",
+    "uvicorn>=0.22.0",
+    "python-multipart>=0.0.22",
+]
+
 all = [
     "mlx-audio[tts]>=0.4.0",
     "webrtcvad>=2.0.10",
+    "fastapi>=0.95.0",
+    "uvicorn>=0.22.0",
+    "python-multipart>=0.0.22",
 ]
 
 dev = [
     "pytest>=7.0.0",
+    "pytest-timeout>=2.0.0",
     "black>=24.2.0",
     "isort>=5.13.2",
     "pre-commit>=3.7.0",
 ]
 
+docs = [
+    "mkdocs-material>=9.6",
+]
+
 [project.scripts]
 "mlx_vc.generate" = "mlx_vc.generate:main"
+"mlx_vc.server" = "mlx_vc.server:main"
 
 [project.urls]
 Homepage = "https://github.com/feiyuehchen/mlx-vc"

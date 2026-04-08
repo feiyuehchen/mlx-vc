@@ -30,3 +30,6 @@ htmlcov/
 
 # Model checkpoints (downloaded at runtime)
 checkpoints/
+
+# MkDocs build output
+site/

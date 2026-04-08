@@ -19,13 +19,30 @@ and the reference repo cloned to `../seed-vc-ref/`.
 ## Testing
 
 ```bash
-pytest -s mlx_vc/tests/
+pytest -s mlx_vc/tests/ -v            # All tests (27 tests)
+pytest -s mlx_vc/tests/test_server.py  # Server tests only
 ```
 
 ## Linting & Formatting
 
 ```bash
 pre-commit run --all-files   # Black (line-length=88) + isort (black profile)
+```
+
+## Server
+
+```bash
+python -m mlx_vc.server                          # Start API server
+python -m mlx_vc.server --host 0.0.0.0 --port 8000  # Custom host/port
+# API docs at http://localhost:8000/docs
+```
+
+## Documentation
+
+```bash
+uv pip install mkdocs-material
+mkdocs serve   # Local preview at http://localhost:8000
+mkdocs build   # Build static site to site/
 ```
 
 ## Architecture

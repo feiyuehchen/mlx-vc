@@ -1,0 +1,69 @@
+# CI: 每次 push 或 PR 到 main，自動跑格式檢查和測試。
+# 如果有人提交了格式不對的程式碼或壞掉的功能，這裡會擋住。
+name: Tests and Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # Step 1: 檢查程式碼風格（Black + isort）
+  style:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Run pre-commit
+        run: |
+          pip install pre-commit
+          pre-commit run --all-files
+          if ! git diff --quiet; then
+            echo 'Style checks failed. Run: pre-commit run --all-files'
+            exit 1
+          fi
+
+  # Step 2: 核心測試（不需要下載大模型的測試）
+  core:
+    runs-on: macos-14
+    needs: style
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install package
+        run: pip install -e ".[dev]"
+
+      - name: Run import and unit tests
+        run: pytest -s mlx_vc/tests/ -v --timeout=60
+
+  # Step 3: 驗證各模型可以獨立 import（不會互相干擾）
+  modular:
+    runs-on: macos-14
+    needs: style
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - { name: "cosyvoice", verify: "from mlx_vc.models.cosyvoice import CosyVoiceVC" }
+          - { name: "seed_vc", verify: "from mlx_vc.models.seed_vc import SeedVC" }
+          - { name: "openvoice", verify: "from mlx_vc.models.openvoice import OpenVoiceVC" }
+          - { name: "knn_vc", verify: "from mlx_vc.models.knn_vc import KnnVC" }
+          - { name: "meanvc", verify: "from mlx_vc.models.meanvc import MeanVC" }
+          - { name: "rvc", verify: "from mlx_vc.models.rvc import RVCVC" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install minimal deps
+        run: pip install -e "."
+
+      - name: Verify ${{ matrix.module.name }} imports
+        run: python -c "${{ matrix.module.verify }}; print('${{ matrix.module.name }} OK')"
