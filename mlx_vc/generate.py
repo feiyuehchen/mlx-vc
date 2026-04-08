@@ -18,6 +18,16 @@ AVAILABLE_MODELS = {
         "description": "Seed-VC zero-shot voice conversion (Whisper + DiT + BigVGAN)",
         "default_repo": "Plachta/Seed-VC",
     },
+    "openvoice": {
+        "class": "mlx_vc.models.openvoice.OpenVoiceVC",
+        "description": "OpenVoice V2 tone color conversion (VITS-based, multilingual)",
+        "default_repo": "myshell-ai/OpenVoiceV2",
+    },
+    "rvc": {
+        "class": "mlx_vc.models.rvc.RVCVC",
+        "description": "RVC retrieval-based VC (requires per-speaker fine-tuned model)",
+        "default_repo": None,
+    },
 }
 
 

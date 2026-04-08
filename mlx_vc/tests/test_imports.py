@@ -11,6 +11,28 @@ def test_generate_module():
     from mlx_vc.generate import AVAILABLE_MODELS, get_vc_model
 
     assert "cosyvoice" in AVAILABLE_MODELS
+    assert "seed-vc" in AVAILABLE_MODELS
+    assert "openvoice" in AVAILABLE_MODELS
+    assert "rvc" in AVAILABLE_MODELS
+
+
+def test_backend_registry():
+    from mlx_vc.backend import BACKENDS
+
+    assert "seed-vc" in BACKENDS
+    assert "openvoice" in BACKENDS
+
+
+def test_openvoice_import():
+    from mlx_vc.models.openvoice import OpenVoiceVC
+
+    assert callable(OpenVoiceVC)
+
+
+def test_rvc_import():
+    from mlx_vc.models.rvc import RVCVC
+
+    assert callable(RVCVC)
 
 
 def test_audio_io():

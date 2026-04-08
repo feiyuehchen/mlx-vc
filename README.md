@@ -63,13 +63,14 @@ save_audio("output.wav", audio, sample_rate=vc.sample_rate)
 
 ## Supported Models
 
-| Model | Type | Zero-shot | Status |
-|-------|------|-----------|--------|
-| CosyVoice3/Chatterbox | TTS + Voice Cloning | Yes | Available |
-| RVC | Retrieval-based VC | No (fine-tuned) | Planned |
-| Seed-VC | Diffusion VC | Yes | Planned |
-| MeanVC | Lightweight streaming VC | Yes | Planned |
-| Vevo | Unified speech+singing VC | Yes | Planned |
+| Model | Type | Zero-shot | Speed | Status |
+|-------|------|-----------|-------|--------|
+| CosyVoice3/Chatterbox | TTS + Voice Cloning | Yes | Fast | Available |
+| Seed-VC | Diffusion VC (speech + singing) | Yes | RTF ~2 | Available |
+| OpenVoice V2 | Tone Color Conversion | Yes | **Very fast** (0.7s/16s) | Available |
+| RVC | Retrieval-based VC | No (fine-tuned) | Fast | Available (needs model) |
+| MeanVC | Lightweight streaming VC | Yes | - | Planned |
+| Vevo | Unified speech+singing VC | Yes | - | Planned |
 
 ## License
 

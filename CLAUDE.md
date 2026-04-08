@@ -61,6 +61,8 @@ lets models with conflicting deps coexist in one package.
 | CosyVoice3/Chatterbox | TTS + voice cloning | In-process (mlx-audio) | Text input only |
 | Seed-VC | Zero-shot VC | Subprocess (PyTorch MPS) | True audio-to-audio VC |
 | Seed-VC SVC | Singing VC | Subprocess (PyTorch MPS) | F0-conditioned, 44kHz |
+| OpenVoice V2 | Tone color conversion | Subprocess (PyTorch) | Very fast, multilingual |
+| RVC | Per-speaker VC | Subprocess | Needs fine-tuned model |
 
 ## Real-time Demo
 

@@ -35,6 +35,11 @@ BACKENDS = {
         "sample_rate": 22050,
         "description": "Seed-VC zero-shot voice conversion (Whisper + DiT + BigVGAN)",
     },
+    "openvoice": {
+        "script": "openvoice_infer.py",
+        "sample_rate": 22050,
+        "description": "OpenVoice V2 tone color conversion (VITS-based)",
+    },
 }
 
 
