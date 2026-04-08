@@ -60,3 +60,20 @@ lets models with conflicting deps coexist in one package.
 |-------|------|---------|-------|
 | CosyVoice3/Chatterbox | TTS + voice cloning | In-process (mlx-audio) | Text input only |
 | Seed-VC | Zero-shot VC | Subprocess (PyTorch MPS) | True audio-to-audio VC |
+| Seed-VC SVC | Singing VC | Subprocess (PyTorch MPS) | F0-conditioned, 44kHz |
+
+## Real-time Demo
+
+```bash
+# List audio devices
+python -m mlx_vc.demo.realtime_vc --reference speaker.wav --list-devices
+
+# Run real-time VC (mic -> speaker)
+python -m mlx_vc.demo.realtime_vc --reference speaker.wav
+
+# With specific devices and settings
+python -m mlx_vc.demo.realtime_vc --reference speaker.wav \
+  --input-device 1 --output-device 2 --diffusion-steps 10
+```
+
+Uses Seed-VC XLSR-tiny model (25M params, ~300ms latency) for real-time inference.
