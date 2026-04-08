@@ -35,6 +35,26 @@ def test_rvc_import():
     assert callable(RVCVC)
 
 
+def test_knnvc_import():
+    from mlx_vc.models.knn_vc import KnnVC
+
+    assert callable(KnnVC)
+
+
+def test_meanvc_import():
+    from mlx_vc.models.meanvc import MeanVC
+
+    assert callable(MeanVC)
+
+
+def test_all_backends():
+    from mlx_vc.backend import BACKENDS
+
+    assert len(BACKENDS) >= 3
+    for name in ["seed-vc", "openvoice", "knn-vc", "meanvc"]:
+        assert name in BACKENDS
+
+
 def test_audio_io():
     from mlx_vc.audio_io import load_audio, save_audio
 

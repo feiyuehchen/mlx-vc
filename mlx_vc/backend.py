@@ -40,6 +40,16 @@ BACKENDS = {
         "sample_rate": 22050,
         "description": "OpenVoice V2 tone color conversion (VITS-based)",
     },
+    "knn-vc": {
+        "script": "knn_vc_infer.py",
+        "sample_rate": 16000,
+        "description": "kNN-VC non-parametric voice conversion (WavLM + kNN + HiFi-GAN)",
+    },
+    "meanvc": {
+        "script": "meanvc_infer.py",
+        "sample_rate": 16000,
+        "description": "MeanVC lightweight streaming VC (14M params, 1-step)",
+    },
 }
 
 

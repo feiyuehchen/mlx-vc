@@ -28,6 +28,16 @@ AVAILABLE_MODELS = {
         "description": "RVC retrieval-based VC (requires per-speaker fine-tuned model)",
         "default_repo": None,
     },
+    "knn-vc": {
+        "class": "mlx_vc.models.knn_vc.KnnVC",
+        "description": "kNN-VC non-parametric VC (WavLM + kNN + HiFi-GAN)",
+        "default_repo": "bshall/knn-vc",
+    },
+    "meanvc": {
+        "class": "mlx_vc.models.meanvc.MeanVC",
+        "description": "MeanVC lightweight streaming VC (14M params, 1-step inference)",
+        "default_repo": None,
+    },
 }
 
 

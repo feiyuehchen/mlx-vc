@@ -69,7 +69,8 @@ save_audio("output.wav", audio, sample_rate=vc.sample_rate)
 | Seed-VC | Diffusion VC (speech + singing) | Yes | RTF ~2 | Available |
 | OpenVoice V2 | Tone Color Conversion | Yes | **Very fast** (0.7s/16s) | Available |
 | RVC | Retrieval-based VC | No (fine-tuned) | Fast | Available (needs model) |
-| MeanVC | Lightweight streaming VC | Yes | - | Planned |
+| kNN-VC | Non-parametric VC (WavLM + kNN) | Yes | Fast (3.4s/10s CPU) | Available |
+| MeanVC | Lightweight streaming VC (14M) | Yes | Very fast (1-step) | Available (needs setup) |
 | Vevo | Unified speech+singing VC | Yes | - | Planned |
 
 ## License
