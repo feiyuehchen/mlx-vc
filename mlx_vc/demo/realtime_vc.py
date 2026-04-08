@@ -102,8 +102,9 @@ class RealtimeVC:
             pass
 
     def _load_models(self):
-        """Load Seed-VC models using inference.py's load_models."""
+        """Load Seed-VC real-time model (XLSR-tiny, 25M params)."""
         import torch
+        from huggingface_hub import hf_hub_download
 
         self._setup_seed_vc()
 
@@ -112,12 +113,27 @@ class RealtimeVC:
         else:
             self.device = torch.device("cpu")
 
-        print("Loading Seed-VC models...")
+        # Use XLSR-tiny checkpoint (designed for real-time)
+        print("Loading Seed-VC real-time model (XLSR-tiny)...")
+
+        # HiFiGAN config uses relative paths, need to chdir
+        self._orig_cwd = os.getcwd()
+        seed_vc_ref = os.path.join(
+            os.path.dirname(__file__), "..", "..", "..", "seed-vc-ref"
+        )
+        os.chdir(os.path.abspath(seed_vc_ref))
+        dit_ckpt = hf_hub_download(
+            "Plachta/Seed-VC", "DiT_uvit_tat_xlsr_ema.pth"
+        )
+        dit_config = hf_hub_download(
+            "Plachta/Seed-VC", "config_dit_mel_seed_uvit_xlsr_tiny.yml"
+        )
+
         from types import SimpleNamespace
 
         args = SimpleNamespace(
-            checkpoint=None,
-            config=None,
+            checkpoint=dit_ckpt,
+            config=dit_config,
             f0_condition=False,
             fp16=False,
         )
@@ -135,6 +151,9 @@ class RealtimeVC:
 
         self.sr = self.mel_fn_args["sampling_rate"]
         self.hop_length = self.mel_fn_args["hop_size"]
+
+        # Restore working directory
+        os.chdir(self._orig_cwd)
 
         # Prepare reference audio embeddings
         self._prepare_reference()
@@ -297,7 +316,7 @@ class RealtimeVC:
                 # Energy gate
                 block_start = len(raw) - block_device_samples
                 rms = np.sqrt(np.mean(raw[block_start:] ** 2))
-                if rms < 0.003:
+                if rms < 0.0005:
                     output_queue.append(
                         np.zeros(block_device_samples, dtype=np.float32)
                     )
