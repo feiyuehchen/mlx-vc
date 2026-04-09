@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Real-time voice conversion demo using Seed-VC.
+"""Real-time voice conversion demo.
 
-Microphone input -> Seed-VC (XLSR-tiny, 10 diffusion steps) -> Speaker output
+Microphone -> Denoise -> OpenVoice V2 (tone color conversion) -> Speaker/BlackHole
+
+OpenVoice V2 is used because it's extremely fast (RTF ~0.04),
+enabling sub-300ms latency for real-time voice conversion.
 
 Usage:
     python -m mlx_vc.demo.realtime_vc --reference speaker.wav
+    python -m mlx_vc.demo.realtime_vc --reference speaker.wav --discord
     python -m mlx_vc.demo.realtime_vc --reference speaker.wav --list-devices
-    python -m mlx_vc.demo.realtime_vc --reference speaker.wav --input-device 1 --output-device 2
 """
 
 import argparse
@@ -33,15 +36,15 @@ def list_devices():
             kind.append("OUT")
         marker = " <-default" if i in sd.default.device else ""
         bh = " [BlackHole]" if "blackhole" in d["name"].lower() else ""
-        print(f"  [{i}] {d['name']} ({'/'.join(kind)}, {int(d['default_samplerate'])}Hz){marker}{bh}")
+        print(
+            f"  [{i}] {d['name']} ({'/'.join(kind)}, "
+            f"{int(d['default_samplerate'])}Hz){marker}{bh}"
+        )
     print()
 
 
 def find_blackhole_device():
-    """Find BlackHole virtual audio device index.
-
-    Returns (device_index, sample_rate) or raises RuntimeError.
-    """
+    """Find BlackHole virtual audio device index."""
     devices = sd.query_devices()
     for i, d in enumerate(devices):
         if "blackhole" in d["name"].lower() and d["max_output_channels"] > 0:
@@ -49,435 +52,349 @@ def find_blackhole_device():
     raise RuntimeError(
         "BlackHole not found. Install it first:\n"
         "  brew install blackhole-2ch\n"
-        "  or download from https://existential.audio/blackhole/\n"
         "Then restart your Mac."
     )
 
 
 class RealtimeVC:
-    """Real-time voice conversion using Seed-VC."""
+    """Real-time voice conversion using OpenVoice V2.
+
+    OpenVoice is a VITS-based tone color converter. It's fast enough
+    for real-time (RTF ~0.04) with sub-300ms block sizes.
+    """
 
     def __init__(
         self,
         reference_path: str,
-        block_time: float = 0.5,
-        crossfade_time: float = 0.05,
-        extra_time: float = 2.5,
-        diffusion_steps: int = 10,
-        inference_cfg_rate: float = 0.7,
-        max_prompt_length: float = 3.0,
+        block_time: float = 0.3,
+        tau: float = 0.3,
         input_device=None,
         output_device=None,
     ):
         self.reference_path = reference_path
         self.block_time = block_time
-        self.crossfade_time = crossfade_time
-        self.extra_time = extra_time
-        self.diffusion_steps = diffusion_steps
-        self.inference_cfg_rate = inference_cfg_rate
-        self.max_prompt_length = max_prompt_length
+        self.tau = tau
         self.input_device = input_device
         self.output_device = output_device
-        self.monitor_device = None  # secondary output for self-monitoring
+        self.monitor_device = None
 
-        self.sr = 22050
-        self.hop_length = 256
+        self.sr = 22050  # OpenVoice operates at 22050Hz
+        self.converter = None
+        self.tgt_se = None
 
-    def _setup_seed_vc(self):
-        """Set up Seed-VC path and patches."""
+    def _setup_openvoice(self):
+        """Load OpenVoice V2 model and extract reference speaker embedding."""
+        import torch
+
         seed_vc_ref = os.path.join(
             os.path.dirname(__file__), "..", "..", "..", "seed-vc-ref"
         )
         seed_vc_ref = os.path.abspath(seed_vc_ref)
-
-        if not os.path.exists(seed_vc_ref):
-            raise RuntimeError(
-                f"Seed-VC reference repo not found at {seed_vc_ref}. "
-                "Clone it: git clone https://github.com/Plachtaa/seed-vc.git seed-vc-ref"
-            )
-
         if seed_vc_ref not in sys.path:
             sys.path.insert(0, seed_vc_ref)
-        os.environ.setdefault(
-            "HF_HUB_CACHE",
-            os.path.join(seed_vc_ref, "checkpoints", "hf_cache"),
-        )
-        os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
-
-        # Patch BigVGAN for newer huggingface_hub
-        try:
-            from modules.bigvgan import bigvgan
-
-            original_fp = bigvgan.BigVGAN._from_pretrained.__func__
-
-            @classmethod
-            def patched_fp(cls, *, proxies=None, resume_download=False, **kwargs):
-                return original_fp(
-                    cls, proxies=proxies, resume_download=resume_download, **kwargs
-                )
-
-            bigvgan.BigVGAN._from_pretrained = patched_fp
-        except Exception:
-            pass
-
-    def _load_models(self):
-        """Load Seed-VC real-time model (XLSR-tiny, 25M params)."""
-        import torch
-        from huggingface_hub import hf_hub_download
-
-        self._setup_seed_vc()
 
         if torch.backends.mps.is_available():
             self.device = torch.device("mps")
         else:
             self.device = torch.device("cpu")
 
-        # Use XLSR-tiny checkpoint (designed for real-time)
-        print("Loading Seed-VC real-time model (XLSR-tiny)...")
-
-        # HiFiGAN config uses relative paths, need to chdir
-        self._orig_cwd = os.getcwd()
-        seed_vc_ref = os.path.join(
-            os.path.dirname(__file__), "..", "..", "..", "seed-vc-ref"
+        # Checkpoint paths
+        ckpt_dir = os.path.join(
+            seed_vc_ref, "modules", "openvoice", "checkpoints_v2", "converter"
         )
-        os.chdir(os.path.abspath(seed_vc_ref))
-        dit_ckpt = hf_hub_download(
-            "Plachta/Seed-VC", "DiT_uvit_tat_xlsr_ema.pth"
-        )
-        dit_config = hf_hub_download(
-            "Plachta/Seed-VC", "config_dit_mel_seed_uvit_xlsr_tiny.yml"
-        )
+        config_path = os.path.join(ckpt_dir, "config.json")
+        ckpt_path = os.path.join(ckpt_dir, "checkpoint.pth")
 
-        from types import SimpleNamespace
+        # Download if needed
+        if not os.path.exists(ckpt_path):
+            from huggingface_hub import hf_hub_download
+            import shutil
 
-        args = SimpleNamespace(
-            checkpoint=dit_ckpt,
-            config=dit_config,
-            f0_condition=False,
-            fp16=False,
-        )
-        from inference import load_models
+            print("Downloading OpenVoice V2 checkpoint...")
+            dl = hf_hub_download("myshell-ai/OpenVoiceV2", "converter/checkpoint.pth")
+            os.makedirs(ckpt_dir, exist_ok=True)
+            shutil.copy2(dl, ckpt_path)
+        if not os.path.exists(config_path):
+            from huggingface_hub import hf_hub_download
+            import shutil
 
-        (
-            self.model,
-            self.semantic_fn,
-            self.f0_fn,
-            self.vocoder_fn,
-            self.campplus_model,
-            self.mel_fn,
-            self.mel_fn_args,
-        ) = load_models(args)
+            dl = hf_hub_download("myshell-ai/OpenVoiceV2", "converter/config.json")
+            os.makedirs(ckpt_dir, exist_ok=True)
+            shutil.copy2(dl, config_path)
 
-        self.sr = self.mel_fn_args["sampling_rate"]
-        self.hop_length = self.mel_fn_args["hop_size"]
+        print("Loading OpenVoice V2...")
+        from modules.openvoice.api import ToneColorConverter
 
-        # Restore working directory
-        os.chdir(self._orig_cwd)
+        self.converter = ToneColorConverter(config_path, device=str(self.device))
+        self.converter.load_ckpt(ckpt_path)
 
-        # Prepare reference audio embeddings
-        self._prepare_reference()
-        print(f"Model loaded. SR={self.sr}, hop={self.hop_length}")
-
-    def _prepare_reference(self):
-        """Pre-compute reference speaker embeddings."""
+        # Pre-extract reference speaker embedding (done once)
         import librosa
-        import torch
-        import torchaudio
 
-        ref_audio = librosa.load(self.reference_path, sr=self.sr)[0]
-        ref_audio = ref_audio[: int(self.sr * self.max_prompt_length)]
-
-        ref_tensor = torch.from_numpy(ref_audio).float().to(self.device)
-        ref_16k = torchaudio.functional.resample(ref_tensor, self.sr, 16000)
+        ref_audio, _ = librosa.load(self.reference_path, sr=self.sr)
+        ref_tensor = torch.FloatTensor(ref_audio).to(self.device)
+        ref_len = len(ref_audio)
 
         with torch.no_grad():
-            S_ref = self.semantic_fn(ref_16k.unsqueeze(0))
-            self.ref_mel = self.mel_fn(ref_tensor.unsqueeze(0))
-            target2_lengths = torch.LongTensor([self.ref_mel.size(2)]).to(self.device)
-            self.prompt_condition = self.model.length_regulator(
-                S_ref, ylens=target2_lengths, n_quantizers=3, f0=None
-            )[0]
-
-            feat = torchaudio.compliance.kaldi.fbank(
-                ref_16k.unsqueeze(0),
-                num_mel_bins=80,
-                dither=0,
-                sample_frequency=16000,
+            self.tgt_se = self.converter.extract_se(
+                [ref_tensor], [ref_len]
             )
-            feat = feat - feat.mean(dim=0, keepdim=True)
-            self.style = self.campplus_model(feat.unsqueeze(0))
 
         print(f"Reference: {self.reference_path} ({len(ref_audio)/self.sr:.1f}s)")
+        print(f"Target SE shape: {self.tgt_se.shape}")
 
-    def _infer_block(self, input_16k_tensor):
-        """Run VC on one block of audio.
+    def _convert_chunk(self, audio_np: np.ndarray) -> np.ndarray:
+        """Convert a single chunk of audio using OpenVoice.
 
         Args:
-            input_16k_tensor: [samples] at 16kHz on device
+            audio_np: float32 numpy array at self.sr
 
         Returns:
-            output waveform as numpy array at self.sr
+            Converted audio as float32 numpy array
         """
         import torch
-        import torchaudio
+
+        audio_tensor = torch.FloatTensor(audio_np).unsqueeze(0).to(self.device)
+        audio_len = torch.LongTensor([len(audio_np)]).to(self.device)
 
         with torch.no_grad():
-            S_alt = self.semantic_fn(input_16k_tensor.unsqueeze(0))
-
-            # Skip initial context (content encoder / DiT difference)
-            ce_dit_frames = int(self.extra_time * 50)
-            S_alt = S_alt[:, ce_dit_frames:]
-
-            skip_head_frames = int(self.extra_time * 50)
-            return_frames = int(self.block_time * 50)
-            skip_tail_frames = int(2.0 * 50)
-            total_frames = skip_head_frames + return_frames + skip_tail_frames - ce_dit_frames
-
-            target_lengths = torch.LongTensor(
-                [int(total_frames / 50 * self.sr / self.hop_length)]
-            ).to(self.device)
-
-            cond = self.model.length_regulator(
-                S_alt, ylens=target_lengths, n_quantizers=3, f0=None
-            )[0]
-
-            cat_condition = torch.cat([self.prompt_condition, cond], dim=1)
-
-            vc_target = self.model.cfm.inference(
-                cat_condition,
-                torch.LongTensor([cat_condition.size(1)]).to(self.device),
-                self.ref_mel,
-                self.style,
-                None,
-                n_timesteps=self.diffusion_steps,
-                inference_cfg_rate=self.inference_cfg_rate,
+            # Extract source speaker embedding from this chunk
+            src_se = self.converter.extract_se(
+                [audio_tensor.squeeze(0)], [audio_len.item()]
             )
-            vc_target = vc_target[:, :, self.ref_mel.size(-1) :]
+            # Convert tone color
+            converted = self.converter.convert(
+                audio_tensor, audio_len, src_se, self.tgt_se, tau=self.tau
+            )
 
-            vc_wave = self.vocoder_fn(vc_target.float()).squeeze()
-
-        # Extract the return portion
-        output_len = int(return_frames * self.sr / 50)
-        tail_len = int(skip_tail_frames * self.sr / 50)
-        if tail_len > 0 and tail_len < len(vc_wave):
-            output = vc_wave[-output_len - tail_len : -tail_len]
-        else:
-            output = vc_wave[-output_len:]
-
-        return output.cpu().numpy()
+        return converted.squeeze().cpu().numpy()
 
     def run(self):
         """Start the real-time VC loop."""
         import torch
         import torchaudio
 
-        self._load_models()
+        self._setup_openvoice()
 
-        # Audio parameters
-        device_sr = int(
+        # Device sample rates
+        in_sr = int(
             sd.query_devices(self.input_device, "input")["default_samplerate"]
         )
-        block_device_samples = int(self.block_time * device_sr)
-        total_context_s = self.extra_time + self.block_time + 2.0
-        total_context_samples = int(total_context_s * device_sr)
+        out_sr = int(
+            sd.query_devices(self.output_device, "output")["default_samplerate"]
+        )
+        mon_sr = None
+        if self.monitor_device is not None:
+            mon_sr = int(
+                sd.query_devices(self.monitor_device, "output")["default_samplerate"]
+            )
+
+        in_block = int(self.block_time * in_sr)
+        out_block = int(self.block_time * out_sr)
 
         # Resamplers
-        resample_to_16k = torchaudio.transforms.Resample(device_sr, 16000).to(
-            self.device
-        )
-        resample_to_device = torchaudio.transforms.Resample(self.sr, device_sr).to(
-            self.device
+        resample_in_to_model = torchaudio.transforms.Resample(in_sr, self.sr)
+        resample_model_to_out = torchaudio.transforms.Resample(self.sr, out_sr)
+        resample_model_to_mon = (
+            torchaudio.transforms.Resample(self.sr, mon_sr) if mon_sr else None
         )
 
         # Buffers
-        input_buffer = np.zeros(total_context_samples, dtype=np.float32)
-        output_queue = deque()
+        input_buffer = np.zeros(int(self.block_time * 2 * in_sr), dtype=np.float32)
+        output_queue = deque(maxlen=3)
+        monitor_queue = deque(maxlen=3)
         lock = threading.Lock()
 
-        # Monitor stream (for hearing yourself while outputting to BlackHole)
-        monitor_stream = None
-        if self.monitor_device is not None:
-            monitor_stream = sd.OutputStream(
-                samplerate=device_sr,
-                blocksize=block_device_samples,
-                device=self.monitor_device,
-                channels=1,
-                dtype="float32",
-            )
-            monitor_stream.start()
+        # Noise profiling
+        print("  Profiling noise (stay quiet 0.5s)...")
+        in_stream_profile = sd.InputStream(
+            samplerate=in_sr, device=self.input_device, channels=1, dtype="float32"
+        )
+        in_stream_profile.start()
+        time.sleep(0.6)
+        noise_data, _ = in_stream_profile.read(int(0.5 * in_sr))
+        in_stream_profile.stop()
+        in_stream_profile.close()
+        noise_profile = noise_data[:, 0].copy()
+        noise_rms = np.sqrt(np.mean(noise_profile ** 2))
+        gate_threshold = max(noise_rms * 4.0, 0.003)
+        print(f"  Noise floor: {noise_rms:.5f}, gate: {gate_threshold:.5f}")
 
-        print(f"\nDevice SR: {device_sr}Hz, Model SR: {self.sr}Hz")
-        print(f"Block: {self.block_time}s, Context: {self.extra_time}s")
-        print(f"Diffusion steps: {self.diffusion_steps}")
-        if self.monitor_device is not None:
-            print(f"Monitor: device {self.monitor_device}")
+        print(f"\n  Input:  device {self.input_device}, {in_sr}Hz")
+        print(f"  Output: device {self.output_device}, {out_sr}Hz")
+        if mon_sr:
+            print(f"  Monitor: device {self.monitor_device}, {mon_sr}Hz")
+        print(f"  Model: OpenVoice V2 @ {self.sr}Hz, block={self.block_time}s")
         print("\n" + "=" * 50)
-        print("  REAL-TIME VOICE CONVERSION ACTIVE")
+        print("  REAL-TIME VOICE CONVERSION (OpenVoice V2)")
         print("  Press Ctrl+C to stop")
         print("=" * 50 + "\n")
 
         self.running = True
-        prev_tail = None
-        crossfade_samples = int(self.crossfade_time * self.sr)
 
-        def audio_callback(indata, outdata, frames, time_info, status):
-            if status:
-                print(f"  Audio: {status}")
-
+        def in_callback(indata, frames, time_info, status):
             mono = indata[:, 0].copy()
             with lock:
-                input_buffer[:-len(mono)] = input_buffer[len(mono) :]
-                input_buffer[-len(mono) :] = mono
+                input_buffer[:-len(mono)] = input_buffer[len(mono):]
+                input_buffer[-len(mono):] = mono
 
+        def out_callback(outdata, frames, time_info, status):
             if output_queue:
                 chunk = output_queue.popleft()
                 n = min(len(chunk), frames)
                 outdata[:n, 0] = chunk[:n]
                 outdata[n:, 0] = 0
-                # Also send to monitor (headphones) if enabled
-                if monitor_stream is not None:
-                    try:
-                        monitor_stream.write(outdata.copy())
-                    except Exception:
-                        pass
+            else:
+                outdata[:] = 0
+
+        def mon_callback(outdata, frames, time_info, status):
+            if monitor_queue:
+                chunk = monitor_queue.popleft()
+                n = min(len(chunk), frames)
+                outdata[:n, 0] = chunk[:n]
+                outdata[n:, 0] = 0
             else:
                 outdata[:] = 0
 
         def process_loop():
-            nonlocal prev_tail
+            import noisereduce as nr
 
             while self.running:
                 t0 = time.time()
 
                 with lock:
-                    raw = input_buffer.copy()
+                    raw = input_buffer[-in_block:].copy()
 
                 # Energy gate
-                block_start = len(raw) - block_device_samples
-                rms = np.sqrt(np.mean(raw[block_start:] ** 2))
-                if rms < 0.0005:
-                    output_queue.append(
-                        np.zeros(block_device_samples, dtype=np.float32)
-                    )
-                    time.sleep(self.block_time * 0.8)
+                rms = np.sqrt(np.mean(raw ** 2))
+                if rms < gate_threshold:
+                    output_queue.append(np.zeros(out_block, dtype=np.float32))
+                    if mon_sr:
+                        monitor_queue.append(
+                            np.zeros(int(self.block_time * mon_sr), dtype=np.float32)
+                        )
+                    time.sleep(self.block_time * 0.5)
                     continue
 
                 try:
-                    raw_tensor = torch.from_numpy(raw).float().to(self.device)
-                    input_16k = resample_to_16k(raw_tensor)
+                    # Denoise
+                    raw_clean = nr.reduce_noise(
+                        y=raw, sr=in_sr, y_noise=noise_profile,
+                        stationary=True, prop_decrease=0.8,
+                    )
 
-                    output = self._infer_block(input_16k)
+                    # Resample to model SR
+                    raw_tensor = torch.from_numpy(raw_clean).float()
+                    model_audio = resample_in_to_model(raw_tensor).numpy()
 
-                    # Crossfade
-                    if prev_tail is not None and crossfade_samples > 0:
-                        n = min(crossfade_samples, len(output), len(prev_tail))
-                        fade_in = np.cos(np.linspace(np.pi / 2, 0, n)) ** 2
-                        fade_out = np.cos(np.linspace(0, np.pi / 2, n)) ** 2
-                        output[:n] = output[:n] * fade_in + prev_tail[-n:] * fade_out
-                    prev_tail = output.copy()
+                    # Voice conversion (OpenVoice — very fast)
+                    converted = self._convert_chunk(model_audio)
 
-                    # Resample to device SR
-                    out_tensor = torch.from_numpy(output).float().to(self.device)
-                    out_device = resample_to_device(out_tensor).cpu().numpy()
-                    output_queue.append(out_device)
+                    # Resample to output SR
+                    conv_tensor = torch.from_numpy(converted).float()
+                    out_audio = resample_model_to_out(conv_tensor).numpy()
+                    output_queue.append(out_audio)
+
+                    if resample_model_to_mon is not None:
+                        mon_audio = resample_model_to_mon(conv_tensor).numpy()
+                        monitor_queue.append(mon_audio)
 
                 except Exception as e:
                     print(f"\n  Error: {e}")
-                    output_queue.append(
-                        np.zeros(block_device_samples, dtype=np.float32)
-                    )
+                    output_queue.append(np.zeros(out_block, dtype=np.float32))
 
                 elapsed = time.time() - t0
-                rtf = elapsed / self.block_time
-                sym = "OK" if rtf < 1.0 else "SLOW"
+                latency_ms = elapsed * 1000
                 print(
-                    f"\r  RTF: {rtf:.2f} ({sym}) | "
-                    f"Infer: {elapsed:.3f}s | "
+                    f"\r  Latency: {latency_ms:.0f}ms | "
                     f"Queue: {len(output_queue)}  ",
                     end="",
                     flush=True,
                 )
 
+                # Wait for next block
                 wait = self.block_time - elapsed
                 if wait > 0:
-                    time.sleep(wait * 0.5)
+                    time.sleep(wait)
 
+        # Start streams
+        streams = []
         try:
-            with sd.Stream(
-                samplerate=device_sr,
-                blocksize=block_device_samples,
-                device=(self.input_device, self.output_device),
-                channels=1,
-                dtype="float32",
-                callback=audio_callback,
-            ):
-                proc = threading.Thread(target=process_loop, daemon=True)
-                proc.start()
-                while True:
-                    time.sleep(0.1)
+            streams.append(
+                sd.InputStream(
+                    samplerate=in_sr, blocksize=in_block,
+                    device=self.input_device, channels=1,
+                    dtype="float32", callback=in_callback,
+                )
+            )
+            streams.append(
+                sd.OutputStream(
+                    samplerate=out_sr, blocksize=out_block,
+                    device=self.output_device, channels=1,
+                    dtype="float32", callback=out_callback,
+                )
+            )
+            if mon_sr:
+                streams.append(
+                    sd.OutputStream(
+                        samplerate=mon_sr,
+                        blocksize=int(self.block_time * mon_sr),
+                        device=self.monitor_device, channels=1,
+                        dtype="float32", callback=mon_callback,
+                    )
+                )
+
+            for s in streams:
+                s.start()
+
+            proc = threading.Thread(target=process_loop, daemon=True)
+            proc.start()
+
+            while True:
+                time.sleep(0.1)
+
         except KeyboardInterrupt:
             print("\n\nStopping...")
             self.running = False
-            if monitor_stream is not None:
-                monitor_stream.stop()
-                monitor_stream.close()
-            time.sleep(0.5)
+            for s in streams:
+                s.stop()
+                s.close()
+            time.sleep(0.3)
             print("Done.")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Real-time voice conversion using Seed-VC"
+        description="Real-time voice conversion (OpenVoice V2)"
     )
     parser.add_argument(
-        "--reference",
-        type=str,
-        required=True,
-        help="Path to reference speaker audio",
+        "--reference", type=str, required=True,
+        help="Path to target speaker audio",
     )
     parser.add_argument(
-        "--list-devices", action="store_true", help="List audio devices and exit"
+        "--list-devices", action="store_true", help="List audio devices and exit",
     )
     parser.add_argument(
-        "--input-device", type=int, default=None, help="Input device index"
+        "--input-device", type=int, default=None, help="Input device index",
     )
     parser.add_argument(
-        "--output-device", type=int, default=None, help="Output device index"
+        "--output-device", type=int, default=None, help="Output device index",
     )
     parser.add_argument(
-        "--block-time",
-        type=float,
-        default=0.5,
-        help="Block size in seconds (default: 0.5)",
+        "--block-time", type=float, default=0.3,
+        help="Block size in seconds (default: 0.3)",
     )
     parser.add_argument(
-        "--diffusion-steps",
-        type=int,
-        default=10,
-        help="Diffusion steps (default: 10)",
+        "--tau", type=float, default=0.3,
+        help="Style control: 0=more target, 1=more source (default: 0.3)",
     )
     parser.add_argument(
-        "--cfg-rate",
-        type=float,
-        default=0.7,
-        help="CFG rate (default: 0.7)",
+        "--discord", action="store_true",
+        help="Discord mode: output to BlackHole, monitor to headphones",
     )
     parser.add_argument(
-        "--extra-time",
-        type=float,
-        default=2.5,
-        help="Extra context in seconds (default: 2.5)",
-    )
-    parser.add_argument(
-        "--discord",
-        action="store_true",
-        help="Discord mode: output to BlackHole virtual device so Discord can read it as mic input",
-    )
-    parser.add_argument(
-        "--monitor",
-        type=int,
-        default=None,
-        help="Monitor device index: also output to this device (e.g. headphones) so you can hear yourself",
+        "--monitor", type=int, default=None,
+        help="Monitor device index (hear yourself)",
     )
 
     args = parser.parse_args()
@@ -486,7 +403,6 @@ def main():
         list_devices()
         return
 
-    # Discord mode: auto-detect BlackHole as output
     output_device = args.output_device
     monitor_device = args.monitor
     if args.discord:
@@ -495,11 +411,10 @@ def main():
             output_device = bh
             print(f"Discord mode: output -> BlackHole (device {bh})")
             if monitor_device is None:
-                # Auto-set monitor to default output so user can hear themselves
                 default_out = sd.default.device[1]
                 if default_out != bh:
                     monitor_device = default_out
-                    print(f"Monitor: also outputting to device {default_out} (your headphones/speakers)")
+                    print(f"Monitor: device {default_out}")
         except RuntimeError as e:
             print(f"Error: {e}")
             return
@@ -507,9 +422,7 @@ def main():
     vc = RealtimeVC(
         reference_path=args.reference,
         block_time=args.block_time,
-        diffusion_steps=args.diffusion_steps,
-        inference_cfg_rate=args.cfg_rate,
-        extra_time=args.extra_time,
+        tau=args.tau,
         input_device=args.input_device,
         output_device=output_device,
     )
