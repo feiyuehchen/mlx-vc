@@ -32,8 +32,26 @@ def list_devices():
         if d["max_output_channels"] > 0:
             kind.append("OUT")
         marker = " <-default" if i in sd.default.device else ""
-        print(f"  [{i}] {d['name']} ({'/'.join(kind)}, {int(d['default_samplerate'])}Hz){marker}")
+        bh = " [BlackHole]" if "blackhole" in d["name"].lower() else ""
+        print(f"  [{i}] {d['name']} ({'/'.join(kind)}, {int(d['default_samplerate'])}Hz){marker}{bh}")
     print()
+
+
+def find_blackhole_device():
+    """Find BlackHole virtual audio device index.
+
+    Returns (device_index, sample_rate) or raises RuntimeError.
+    """
+    devices = sd.query_devices()
+    for i, d in enumerate(devices):
+        if "blackhole" in d["name"].lower() and d["max_output_channels"] > 0:
+            return i
+    raise RuntimeError(
+        "BlackHole not found. Install it first:\n"
+        "  brew install blackhole-2ch\n"
+        "  or download from https://existential.audio/blackhole/\n"
+        "Then restart your Mac."
+    )
 
 
 class RealtimeVC:
@@ -60,6 +78,7 @@ class RealtimeVC:
         self.max_prompt_length = max_prompt_length
         self.input_device = input_device
         self.output_device = output_device
+        self.monitor_device = None  # secondary output for self-monitoring
 
         self.sr = 22050
         self.hop_length = 256
@@ -275,9 +294,23 @@ class RealtimeVC:
         output_queue = deque()
         lock = threading.Lock()
 
+        # Monitor stream (for hearing yourself while outputting to BlackHole)
+        monitor_stream = None
+        if self.monitor_device is not None:
+            monitor_stream = sd.OutputStream(
+                samplerate=device_sr,
+                blocksize=block_device_samples,
+                device=self.monitor_device,
+                channels=1,
+                dtype="float32",
+            )
+            monitor_stream.start()
+
         print(f"\nDevice SR: {device_sr}Hz, Model SR: {self.sr}Hz")
         print(f"Block: {self.block_time}s, Context: {self.extra_time}s")
         print(f"Diffusion steps: {self.diffusion_steps}")
+        if self.monitor_device is not None:
+            print(f"Monitor: device {self.monitor_device}")
         print("\n" + "=" * 50)
         print("  REAL-TIME VOICE CONVERSION ACTIVE")
         print("  Press Ctrl+C to stop")
@@ -301,6 +334,12 @@ class RealtimeVC:
                 n = min(len(chunk), frames)
                 outdata[:n, 0] = chunk[:n]
                 outdata[n:, 0] = 0
+                # Also send to monitor (headphones) if enabled
+                if monitor_stream is not None:
+                    try:
+                        monitor_stream.write(outdata.copy())
+                    except Exception:
+                        pass
             else:
                 outdata[:] = 0
 
@@ -379,6 +418,9 @@ class RealtimeVC:
         except KeyboardInterrupt:
             print("\n\nStopping...")
             self.running = False
+            if monitor_stream is not None:
+                monitor_stream.stop()
+                monitor_stream.close()
             time.sleep(0.5)
             print("Done.")
 
@@ -426,12 +468,41 @@ def main():
         default=2.5,
         help="Extra context in seconds (default: 2.5)",
     )
+    parser.add_argument(
+        "--discord",
+        action="store_true",
+        help="Discord mode: output to BlackHole virtual device so Discord can read it as mic input",
+    )
+    parser.add_argument(
+        "--monitor",
+        type=int,
+        default=None,
+        help="Monitor device index: also output to this device (e.g. headphones) so you can hear yourself",
+    )
 
     args = parser.parse_args()
 
     if args.list_devices:
         list_devices()
         return
+
+    # Discord mode: auto-detect BlackHole as output
+    output_device = args.output_device
+    monitor_device = args.monitor
+    if args.discord:
+        try:
+            bh = find_blackhole_device()
+            output_device = bh
+            print(f"Discord mode: output -> BlackHole (device {bh})")
+            if monitor_device is None:
+                # Auto-set monitor to default output so user can hear themselves
+                default_out = sd.default.device[1]
+                if default_out != bh:
+                    monitor_device = default_out
+                    print(f"Monitor: also outputting to device {default_out} (your headphones/speakers)")
+        except RuntimeError as e:
+            print(f"Error: {e}")
+            return
 
     vc = RealtimeVC(
         reference_path=args.reference,
@@ -440,8 +511,9 @@ def main():
         inference_cfg_rate=args.cfg_rate,
         extra_time=args.extra_time,
         input_device=args.input_device,
-        output_device=args.output_device,
+        output_device=output_device,
     )
+    vc.monitor_device = monitor_device
     vc.run()
 
 

@@ -34,6 +34,7 @@ nav:
       - MeanVC: models/meanvc.md
   - Guides:
       - Real-time Demo: guides/realtime.md
+      - Discord Integration: guides/discord.md
       - Server API: guides/server.md
   - Contributing:
       - Development Setup: contributing/dev-setup.md
