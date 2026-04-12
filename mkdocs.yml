@@ -26,6 +26,7 @@ nav:
       - Quick Start: getting-started/quickstart.md
   - Models:
       - Overview: models/index.md
+      - Full Comparison: models.md
       - Seed-VC: models/seed-vc.md
       - OpenVoice V2: models/openvoice.md
       - kNN-VC: models/knn-vc.md

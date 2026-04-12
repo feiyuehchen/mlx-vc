@@ -273,14 +273,13 @@ class RealtimeVC:
                         monitor_queue.append(
                             np.zeros(int(self.block_time * mon_sr), dtype=np.float32)
                         )
-                    time.sleep(self.block_time * 0.5)
                     continue
 
                 try:
-                    # Denoise
+                    # Light denoise (prop_decrease=0.4 keeps more voice detail)
                     raw_clean = nr.reduce_noise(
                         y=raw, sr=in_sr, y_noise=noise_profile,
-                        stationary=True, prop_decrease=0.8,
+                        stationary=True, prop_decrease=0.4,
                     )
 
                     # Resample to model SR
@@ -312,10 +311,7 @@ class RealtimeVC:
                     flush=True,
                 )
 
-                # Wait for next block
-                wait = self.block_time - elapsed
-                if wait > 0:
-                    time.sleep(wait)
+                # No artificial delay — process as fast as possible
 
         # Start streams
         streams = []
