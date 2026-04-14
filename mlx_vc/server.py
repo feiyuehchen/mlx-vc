@@ -263,23 +263,55 @@ MLX_VC_REF_DIR = os.environ.get(
 )
 
 
+# Uploaded references (live for the server's lifetime, cleaned on shutdown)
+UPLOAD_REF_DIR = "/tmp/mlx_vc_uploads/refs"
+os.makedirs(UPLOAD_REF_DIR, exist_ok=True)
+
+
 def _resolve_reference(ref: str) -> Optional[str]:
     """Resolve a reference identifier into an absolute path on the server.
 
     Accepts:
       - Absolute path: returned as-is if it exists
-      - Bare filename: looked up under MLX_VC_REF_DIR
+      - Bare filename: looked up under MLX_VC_REF_DIR, then UPLOAD_REF_DIR
     """
     if not ref:
         return None
     # Absolute path?
     if os.path.isabs(ref) and os.path.exists(ref):
         return ref
-    # Bare filename — block path traversal then look up under ref dir
+    # Bare filename — block path traversal then look up under known dirs
     if "/" in ref or ".." in ref:
         return None
-    candidate = os.path.join(MLX_VC_REF_DIR, ref)
-    return candidate if os.path.exists(candidate) else None
+    for d in (MLX_VC_REF_DIR, UPLOAD_REF_DIR):
+        candidate = os.path.join(d, ref)
+        if os.path.exists(candidate):
+            return candidate
+    return None
+
+
+@app.post("/v1/audio/upload-reference")
+async def upload_reference(file: UploadFile = File(...)):
+    """Save an uploaded reference WAV; return its server-side filename.
+
+    The frontend can later use this filename in WS init messages or
+    batch requests. Files live in UPLOAD_REF_DIR until server shutdown.
+    """
+    import uuid
+
+    # Generate a unique filename keeping the original extension
+    suffix = ".wav"
+    if file.filename and "." in file.filename:
+        ext = "." + file.filename.rsplit(".", 1)[-1].lower()
+        if ext in (".wav", ".mp3", ".flac", ".ogg", ".m4a"):
+            suffix = ext
+
+    filename = f"upload_{uuid.uuid4().hex[:12]}{suffix}"
+    path = os.path.join(UPLOAD_REF_DIR, filename)
+    with open(path, "wb") as out:
+        out.write(file.file.read())
+
+    return {"filename": filename, "path": path}
 
 
 @app.websocket("/ws/realtime")

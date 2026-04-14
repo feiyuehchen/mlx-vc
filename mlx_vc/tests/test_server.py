@@ -70,3 +70,40 @@ def test_job_result_not_found():
     """GET result for non-existent job should 404."""
     r = client.get("/v1/jobs/nonexistent/result/openvoice")
     assert r.status_code == 404
+
+
+def test_upload_reference_creates_file():
+    """POST /v1/audio/upload-reference should save the file and return its name."""
+    import os
+
+    fake_wav = io.BytesIO(b"RIFF" + b"\x00" * 100)
+    r = client.post(
+        "/v1/audio/upload-reference",
+        files={"file": ("my_voice.wav", fake_wav, "audio/wav")},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert "filename" in body
+    assert body["filename"].startswith("upload_")
+    assert body["filename"].endswith(".wav")
+    assert os.path.exists(body["path"])
+    os.unlink(body["path"])
+
+
+def test_upload_then_resolve_finds_uploaded_file():
+    """An uploaded reference should be findable via _resolve_reference."""
+    import os
+
+    from mlx_vc.server import _resolve_reference
+
+    fake_wav = io.BytesIO(b"RIFF" + b"\x00" * 100)
+    r = client.post(
+        "/v1/audio/upload-reference",
+        files={"file": ("ref.wav", fake_wav, "audio/wav")},
+    )
+    body = r.json()
+    try:
+        resolved = _resolve_reference(body["filename"])
+        assert resolved == body["path"]
+    finally:
+        os.unlink(body["path"])
