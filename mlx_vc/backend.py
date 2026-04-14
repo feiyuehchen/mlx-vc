@@ -50,6 +50,11 @@ BACKENDS = {
         "sample_rate": 16000,
         "description": "MeanVC lightweight streaming VC (14M params, 1-step)",
     },
+    "rvc": {
+        "script": "rvc_infer.py",
+        "sample_rate": 48000,
+        "description": "RVC via Acelogic MLX (requires pre-converted .npz model)",
+    },
 }
 
 
