@@ -10,20 +10,31 @@ Then:  curl -X POST http://localhost:8000/v1/audio/convert \
 """
 
 import argparse
+import asyncio
 import io
 import os
+import struct
 import tempfile
 import time
-from typing import Optional
+from typing import List, Optional
 
 import numpy as np
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import (
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 
 from mlx_vc.audio_io import load_audio, save_audio
 from mlx_vc.backend import BACKENDS, run_backend
 from mlx_vc.generate import AVAILABLE_MODELS
+from mlx_vc.jobs import JOB_TMP_ROOT, get_manager
 
 app = FastAPI(
     title="mlx-vc",
@@ -122,12 +133,235 @@ async def convert_audio(
                 os.unlink(p)
 
 
-def _save_upload(upload: UploadFile, prefix: str) -> str:
+def _save_upload(upload: UploadFile, prefix: str, dest_dir: str = None) -> str:
     """Save an uploaded file to a temp path."""
+    if dest_dir is not None:
+        os.makedirs(dest_dir, exist_ok=True)
+        path = os.path.join(dest_dir, f"{prefix}_{upload.filename or 'audio.wav'}")
+        with open(path, "wb") as f:
+            f.write(upload.file.read())
+        return path
     fd, path = tempfile.mkstemp(suffix=".wav", prefix=f"mlx_vc_{prefix}_")
     with os.fdopen(fd, "wb") as f:
         f.write(upload.file.read())
     return path
+
+
+# ============================================================================
+# Batch endpoints — run multiple models on the same input
+# ============================================================================
+
+@app.post("/v1/audio/convert/batch")
+async def convert_batch(
+    source: UploadFile = File(...),
+    reference: UploadFile = File(...),
+    models: str = Form("openvoice,seed-vc,knn-vc,cosyvoice"),
+    text: Optional[str] = Form(None),
+):
+    """Run multiple VC models on the same source/reference, in the background.
+
+    Returns a job_id that can be polled via /v1/jobs/{job_id}.
+    """
+    requested = [m.strip() for m in models.split(",") if m.strip()]
+    valid_models = set(BACKENDS.keys()) | {"cosyvoice"}
+    invalid = [m for m in requested if m not in valid_models]
+    if invalid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown models: {invalid}. Valid: {sorted(valid_models)}",
+        )
+
+    manager = get_manager()
+    # Pre-create job_id then save uploads under its tmp dir
+    import uuid
+
+    job_id = uuid.uuid4().hex[:12]
+    tmp_dir = JOB_TMP_ROOT / job_id
+    src_path = _save_upload(source, "src", str(tmp_dir))
+    ref_path = _save_upload(reference, "ref", str(tmp_dir))
+
+    job = manager.create_job(
+        source_path=src_path,
+        reference_path=ref_path,
+        models=requested,
+        text=text,
+    )
+    # Override the auto-generated job_id and tmp_dir
+    manager.jobs.pop(job.job_id, None)
+    job.job_id = job_id
+    job.tmp_dir = tmp_dir
+    manager.jobs[job_id] = job
+
+    # Spawn the run in background
+    asyncio.create_task(manager.run_job(job))
+
+    return {
+        "job_id": job_id,
+        "models": requested,
+        "tasks": [
+            {"model": m, "status": "queued", "eta_s": job.tasks[m].eta_s}
+            for m in requested
+        ],
+    }
+
+
+@app.get("/v1/jobs/{job_id}")
+async def get_job_status(job_id: str):
+    """Poll the status of a batch job."""
+    job = get_manager().get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+
+    tasks = []
+    for model, task in job.tasks.items():
+        elapsed = task.elapsed_s
+        if task.status == "running" and task._start_time:
+            elapsed = time.monotonic() - task._start_time
+        tasks.append(
+            {
+                "model": model,
+                "status": task.status,
+                "elapsed_s": round(elapsed, 2),
+                "eta_s": task.eta_s,
+                "error": task.error,
+                "result_url": (
+                    f"/v1/jobs/{job_id}/result/{model}"
+                    if task.status == "done"
+                    else None
+                ),
+            }
+        )
+
+    all_done = all(t["status"] in ("done", "error") for t in tasks)
+    return {"job_id": job_id, "tasks": tasks, "all_done": all_done}
+
+
+@app.get("/v1/jobs/{job_id}/result/{model}")
+async def get_job_result(job_id: str, model: str):
+    """Stream the converted WAV for a completed task."""
+    job = get_manager().get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+    task = job.tasks.get(model)
+    if task is None:
+        raise HTTPException(status_code=404, detail=f"Model not in job: {model}")
+    if task.status != "done" or not task.output_path:
+        raise HTTPException(
+            status_code=409, detail=f"Task not ready: {task.status}"
+        )
+    return FileResponse(task.output_path, media_type="audio/wav")
+
+
+# ============================================================================
+# WebSocket: real-time voice conversion via OpenVoice
+# ============================================================================
+
+@app.websocket("/ws/realtime")
+async def ws_realtime(websocket: WebSocket):
+    """Stream microphone audio in, get converted audio out.
+
+    Protocol:
+      C->S text: {"type":"init","reference":"<path>","sample_rate":16000,"tau":0.3}
+      S->C text: {"type":"ready"} or {"type":"error","message":...}
+      C->S binary: Float32 PCM at sample_rate (mono)
+      S->C binary: Float32 PCM (converted, at OpenVoice 22050Hz)
+      C->S text: {"type":"stop"}
+    """
+    await websocket.accept()
+
+    from mlx_vc.realtime import get_session
+
+    session = None
+    sample_rate = 16000
+    tau = 0.3
+
+    try:
+        # Wait for init message
+        init_msg = await websocket.receive_json()
+        if init_msg.get("type") != "init":
+            await websocket.send_json({"type": "error", "message": "Expected init"})
+            return
+
+        ref_path = init_msg.get("reference")
+        sample_rate = int(init_msg.get("sample_rate", 16000))
+        tau = float(init_msg.get("tau", 0.3))
+
+        if not ref_path or not os.path.exists(ref_path):
+            await websocket.send_json(
+                {"type": "error", "message": f"Reference not found: {ref_path}"}
+            )
+            return
+
+        # Load OpenVoice session (singleton)
+        session = await asyncio.to_thread(get_session)
+        await asyncio.to_thread(session.set_reference, ref_path)
+
+        await websocket.send_json(
+            {"type": "ready", "model": "openvoice", "output_sr": session.output_sr}
+        )
+
+        # Audio loop
+        block_count = 0
+        while True:
+            msg = await websocket.receive()
+            if "text" in msg and msg["text"]:
+                import json
+
+                payload = json.loads(msg["text"])
+                if payload.get("type") == "stop":
+                    break
+                continue
+
+            if "bytes" not in msg or msg["bytes"] is None:
+                continue
+
+            # Decode Float32 PCM
+            raw = msg["bytes"]
+            audio = np.frombuffer(raw, dtype=np.float32).copy()
+            if len(audio) == 0:
+                continue
+
+            # Skip silent blocks (energy gate)
+            rms = float(np.sqrt(np.mean(audio**2)))
+            if rms < 0.005:
+                # Send silence at output sr
+                out_len = int(len(audio) * session.output_sr / sample_rate)
+                silence = np.zeros(out_len, dtype=np.float32)
+                await websocket.send_bytes(silence.tobytes())
+                continue
+
+            t0 = time.monotonic()
+            converted = await asyncio.to_thread(
+                session.convert_chunk, audio, sample_rate, tau
+            )
+            latency_ms = (time.monotonic() - t0) * 1000
+
+            await websocket.send_bytes(converted.astype(np.float32).tobytes())
+
+            block_count += 1
+            if block_count % 10 == 0:
+                await websocket.send_json(
+                    {"type": "stats", "latency_ms": round(latency_ms, 1)}
+                )
+
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        try:
+            await websocket.send_json({"type": "error", "message": str(e)})
+        except Exception:
+            pass
+    finally:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
+
+
+@app.on_event("shutdown")
+async def cleanup_on_shutdown():
+    """Clean up job temp files when server stops."""
+    get_manager().cleanup_all()
 
 
 def main():

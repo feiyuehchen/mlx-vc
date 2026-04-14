@@ -83,91 +83,22 @@ class RealtimeVC:
         self.tgt_se = None
 
     def _setup_openvoice(self):
-        """Load OpenVoice V2 model and extract reference speaker embedding."""
-        import torch
-
-        seed_vc_ref = os.path.join(
-            os.path.dirname(__file__), "..", "..", "..", "seed-vc-ref"
-        )
-        seed_vc_ref = os.path.abspath(seed_vc_ref)
-        if seed_vc_ref not in sys.path:
-            sys.path.insert(0, seed_vc_ref)
-
-        if torch.backends.mps.is_available():
-            self.device = torch.device("mps")
-        else:
-            self.device = torch.device("cpu")
-
-        # Checkpoint paths
-        ckpt_dir = os.path.join(
-            seed_vc_ref, "modules", "openvoice", "checkpoints_v2", "converter"
-        )
-        config_path = os.path.join(ckpt_dir, "config.json")
-        ckpt_path = os.path.join(ckpt_dir, "checkpoint.pth")
-
-        # Download if needed
-        if not os.path.exists(ckpt_path):
-            from huggingface_hub import hf_hub_download
-            import shutil
-
-            print("Downloading OpenVoice V2 checkpoint...")
-            dl = hf_hub_download("myshell-ai/OpenVoiceV2", "converter/checkpoint.pth")
-            os.makedirs(ckpt_dir, exist_ok=True)
-            shutil.copy2(dl, ckpt_path)
-        if not os.path.exists(config_path):
-            from huggingface_hub import hf_hub_download
-            import shutil
-
-            dl = hf_hub_download("myshell-ai/OpenVoiceV2", "converter/config.json")
-            os.makedirs(ckpt_dir, exist_ok=True)
-            shutil.copy2(dl, config_path)
+        """Load OpenVoice V2 via mlx_vc.realtime singleton."""
+        from mlx_vc.realtime import OpenVoiceSession
 
         print("Loading OpenVoice V2...")
-        from modules.openvoice.api import ToneColorConverter
+        self.session = OpenVoiceSession()
+        self.session.load()
+        self.session.set_reference(self.reference_path)
+        self.device = self.session.device
 
-        self.converter = ToneColorConverter(config_path, device=str(self.device))
-        self.converter.load_ckpt(ckpt_path)
-
-        # Pre-extract reference speaker embedding (done once)
         import librosa
-
         ref_audio, _ = librosa.load(self.reference_path, sr=self.sr)
-        ref_tensor = torch.FloatTensor(ref_audio).to(self.device)
-        ref_len = len(ref_audio)
-
-        with torch.no_grad():
-            self.tgt_se = self.converter.extract_se(
-                [ref_tensor], [ref_len]
-            )
-
         print(f"Reference: {self.reference_path} ({len(ref_audio)/self.sr:.1f}s)")
-        print(f"Target SE shape: {self.tgt_se.shape}")
 
     def _convert_chunk(self, audio_np: np.ndarray) -> np.ndarray:
-        """Convert a single chunk of audio using OpenVoice.
-
-        Args:
-            audio_np: float32 numpy array at self.sr
-
-        Returns:
-            Converted audio as float32 numpy array
-        """
-        import torch
-
-        audio_tensor = torch.FloatTensor(audio_np).unsqueeze(0).to(self.device)
-        audio_len = torch.LongTensor([len(audio_np)]).to(self.device)
-
-        with torch.no_grad():
-            # Extract source speaker embedding from this chunk
-            src_se = self.converter.extract_se(
-                [audio_tensor.squeeze(0)], [audio_len.item()]
-            )
-            # Convert tone color
-            converted = self.converter.convert(
-                audio_tensor, audio_len, src_se, self.tgt_se, tau=self.tau
-            )
-
-        return converted.squeeze().cpu().numpy()
+        """Convert a single chunk of audio using OpenVoice."""
+        return self.session.convert_chunk(audio_np, sample_rate=self.sr, tau=self.tau)
 
     def run(self):
         """Start the real-time VC loop."""
