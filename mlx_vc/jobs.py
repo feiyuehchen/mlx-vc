@@ -137,19 +137,43 @@ class JobManager:
         output: str,
         text: str,
     ) -> None:
-        """Dispatch a single model run. Runs in a thread."""
-        if model in BACKENDS:
-            # Subprocess backend (seed-vc, openvoice, knn-vc, meanvc, rvc)
-            run_backend(model, source=source, reference=reference, output=output)
-        elif model == "cosyvoice":
+        """Dispatch a single model run. Runs in a thread.
+
+        Fast in-process path:
+          - openvoice: reuse the realtime singleton (no model reload)
+          - cosyvoice: in-process via mlx-audio
+        Subprocess path (model loads each call):
+          - seed-vc, knn-vc, meanvc, rvc
+        """
+        if model == "openvoice":
+            # Use the persistent OpenVoiceSession singleton — avoids the
+            # ~10s model load that the subprocess backend incurs each call.
+            import librosa
+            from mlx_vc.realtime import get_session
+
+            session = get_session()
+            session.set_reference(reference)
+
+            src_audio, _ = librosa.load(source, sr=session.sr)
+            converted = session.convert_chunk(src_audio, sample_rate=session.sr)
+            save_audio(output, converted, sample_rate=session.output_sr)
+            return
+
+        if model == "cosyvoice":
             # CosyVoice is in-process, takes text not audio
             from mlx_vc.models.cosyvoice import CosyVoiceVC
 
             vc = CosyVoiceVC(verbose=False)
             audio = vc.convert(text=text, ref_audio=reference)
             save_audio(output, audio, sample_rate=vc.sample_rate)
-        else:
-            raise ValueError(f"Unknown model: {model}")
+            return
+
+        if model in BACKENDS:
+            # Subprocess backend (seed-vc, knn-vc, meanvc, rvc)
+            run_backend(model, source=source, reference=reference, output=output)
+            return
+
+        raise ValueError(f"Unknown model: {model}")
 
     def cleanup_job(self, job_id: str) -> None:
         """Remove a job and its temp files."""

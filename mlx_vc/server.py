@@ -256,16 +256,45 @@ async def get_job_result(job_id: str, model: str):
 # WebSocket: real-time voice conversion via OpenVoice
 # ============================================================================
 
+# Reference audio resolution: search this dir for filenames sent by clients.
+# Set MLX_VC_REF_DIR to override.
+MLX_VC_REF_DIR = os.environ.get(
+    "MLX_VC_REF_DIR", "/Users/fychen/research/ADP/data/ece472course"
+)
+
+
+def _resolve_reference(ref: str) -> Optional[str]:
+    """Resolve a reference identifier into an absolute path on the server.
+
+    Accepts:
+      - Absolute path: returned as-is if it exists
+      - Bare filename: looked up under MLX_VC_REF_DIR
+    """
+    if not ref:
+        return None
+    # Absolute path?
+    if os.path.isabs(ref) and os.path.exists(ref):
+        return ref
+    # Bare filename — block path traversal then look up under ref dir
+    if "/" in ref or ".." in ref:
+        return None
+    candidate = os.path.join(MLX_VC_REF_DIR, ref)
+    return candidate if os.path.exists(candidate) else None
+
+
 @app.websocket("/ws/realtime")
 async def ws_realtime(websocket: WebSocket):
     """Stream microphone audio in, get converted audio out.
 
     Protocol:
-      C->S text: {"type":"init","reference":"<path>","sample_rate":16000,"tau":0.3}
+      C->S text: {"type":"init","reference":"<filename or abs path>","sample_rate":16000,"tau":0.3}
       S->C text: {"type":"ready"} or {"type":"error","message":...}
       C->S binary: Float32 PCM at sample_rate (mono)
       S->C binary: Float32 PCM (converted, at OpenVoice 22050Hz)
       C->S text: {"type":"stop"}
+
+    Bare filenames are resolved under MLX_VC_REF_DIR (default
+    /Users/fychen/research/ADP/data/ece472course).
     """
     await websocket.accept()
 
@@ -282,13 +311,20 @@ async def ws_realtime(websocket: WebSocket):
             await websocket.send_json({"type": "error", "message": "Expected init"})
             return
 
-        ref_path = init_msg.get("reference")
+        ref_input = init_msg.get("reference")
         sample_rate = int(init_msg.get("sample_rate", 16000))
         tau = float(init_msg.get("tau", 0.3))
 
-        if not ref_path or not os.path.exists(ref_path):
+        ref_path = _resolve_reference(ref_input)
+        if ref_path is None:
             await websocket.send_json(
-                {"type": "error", "message": f"Reference not found: {ref_path}"}
+                {
+                    "type": "error",
+                    "message": (
+                        f"Reference not found: '{ref_input}'. "
+                        f"Searched under MLX_VC_REF_DIR={MLX_VC_REF_DIR}"
+                    ),
+                }
             )
             return
 
