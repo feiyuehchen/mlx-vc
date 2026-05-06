@@ -167,11 +167,14 @@ def _save_upload(upload: UploadFile, prefix: str, dest_dir: str = None) -> str:
 # Batch endpoints — run multiple models on the same input
 # ============================================================================
 
+
 @app.post("/v1/audio/convert/batch")
 async def convert_batch(
     source: UploadFile = File(...),
     reference: UploadFile = File(...),
-    models: str = Form("openvoice,seed-vc,knn-vc,cosyvoice,sesame,outetts,dia,meanvc,freevc,freevc-s,rvc"),
+    models: str = Form(
+        "openvoice,seed-vc,knn-vc,cosyvoice,sesame,outetts,dia,meanvc,freevc,freevc-s,rvc"
+    ),
     text: Optional[str] = Form(None),
 ):
     """Run multiple VC models on the same source/reference, in the background.
@@ -180,6 +183,7 @@ async def convert_batch(
     """
     requested = [m.strip() for m in models.split(",") if m.strip()]
     from mlx_vc.jobs import _TTS_CLONE_MODELS
+
     valid_models = set(BACKENDS.keys()) | set(_TTS_CLONE_MODELS.keys())
     invalid = [m for m in requested if m not in valid_models]
     if invalid:
@@ -263,9 +267,7 @@ async def get_job_result(job_id: str, model: str):
     if task is None:
         raise HTTPException(status_code=404, detail=f"Model not in job: {model}")
     if task.status != "done" or not task.output_path:
-        raise HTTPException(
-            status_code=409, detail=f"Task not ready: {task.status}"
-        )
+        raise HTTPException(status_code=409, detail=f"Task not ready: {task.status}")
     return FileResponse(task.output_path, media_type="audio/wav")
 
 
@@ -466,9 +468,7 @@ def main():
 
     selected_port = _pick_available_port(args.host, args.port, args.max_port_tries)
     if selected_port != args.port:
-        print(
-            f"Port {args.port} is busy, automatically switched to {selected_port}"
-        )
+        print(f"Port {args.port} is busy, automatically switched to {selected_port}")
 
     print(f"Starting mlx-vc server at http://{args.host}:{selected_port}")
     print(f"API docs: http://{args.host}:{selected_port}/docs")

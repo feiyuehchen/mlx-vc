@@ -5,7 +5,7 @@ import tempfile
 
 import pytest
 
-from mlx_vc.server import _resolve_reference, MLX_VC_REF_DIR
+from mlx_vc.server import MLX_VC_REF_DIR, _resolve_reference
 
 
 def test_absolute_path_returned_as_is():

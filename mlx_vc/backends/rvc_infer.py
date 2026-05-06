@@ -41,10 +41,7 @@ def main():
 
     # Model path: explicit arg > env var.  RVC has no sensible default —
     # the model is per-speaker fine-tuned, caller must provide one.
-    model_path = (
-        args.get("model_path")
-        or os.environ.get("RVC_MODEL_PATH")
-    )
+    model_path = args.get("model_path") or os.environ.get("RVC_MODEL_PATH")
 
     if not model_path or not os.path.exists(model_path):
         print(
@@ -75,16 +72,27 @@ def main():
 
     # Subprocess the rvc-mlx CLI
     cmd = [
-        venv_python, cli, "infer",
-        "--model_path", model_path,
-        "--input_path", os.path.abspath(source),
-        "--output_path", os.path.abspath(output),
-        "--pitch", str(pitch),
-        "--f0_method", f0_method,
-        "--index_rate", "0",
-        "--volume_envelope", "1.0",
-        "--protect", "0.5",
-        "--export_format", "WAV",
+        venv_python,
+        cli,
+        "infer",
+        "--model_path",
+        model_path,
+        "--input_path",
+        os.path.abspath(source),
+        "--output_path",
+        os.path.abspath(output),
+        "--pitch",
+        str(pitch),
+        "--f0_method",
+        f0_method,
+        "--index_rate",
+        "0",
+        "--volume_envelope",
+        "1.0",
+        "--protect",
+        "0.5",
+        "--export_format",
+        "WAV",
     ]
     print(f"Running RVC: {' '.join(cmd[:3])}...")
     print(f"Model: {model_path}")

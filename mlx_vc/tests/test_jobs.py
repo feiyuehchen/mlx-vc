@@ -9,13 +9,7 @@ import numpy as np
 import pytest
 
 from mlx_vc.audio_io import save_audio
-from mlx_vc.jobs import (
-    ETA_SECONDS,
-    JOB_TMP_ROOT,
-    JobManager,
-    TaskState,
-    get_manager,
-)
+from mlx_vc.jobs import ETA_SECONDS, JOB_TMP_ROOT, JobManager, TaskState, get_manager
 
 
 def _make_wav(path: str, duration_s: float = 1.0, sr: int = 22050) -> None:
@@ -61,9 +55,7 @@ def test_create_job_initializes_tasks():
         _make_wav(src.name)
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as ref:
             _make_wav(ref.name)
-            job = mgr.create_job(
-                src.name, ref.name, ["openvoice", "seed-vc", "knn-vc"]
-            )
+            job = mgr.create_job(src.name, ref.name, ["openvoice", "seed-vc", "knn-vc"])
             assert set(job.tasks.keys()) == {"openvoice", "seed-vc", "knn-vc"}
             for task in job.tasks.values():
                 assert task.status == "queued"

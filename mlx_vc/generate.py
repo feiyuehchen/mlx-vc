@@ -6,7 +6,6 @@ from pathlib import Path
 
 import numpy as np
 
-
 AVAILABLE_MODELS = {
     "cosyvoice": {
         "class": "mlx_vc.models.cosyvoice.CosyVoiceVC",

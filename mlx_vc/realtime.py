@@ -15,7 +15,6 @@ from typing import Optional
 
 import numpy as np
 
-
 # Module-level singleton + lock
 _SESSION_LOCK = threading.Lock()
 _SESSION: Optional["OpenVoiceSession"] = None
@@ -57,9 +56,7 @@ class OpenVoiceSession:
 
         import torch
 
-        seed_vc_ref = os.path.join(
-            os.path.dirname(__file__), "..", "..", "seed-vc-ref"
-        )
+        seed_vc_ref = os.path.join(os.path.dirname(__file__), "..", "..", "seed-vc-ref")
         seed_vc_ref = os.path.abspath(seed_vc_ref)
         if seed_vc_ref not in sys.path:
             sys.path.insert(0, seed_vc_ref)
@@ -76,8 +73,9 @@ class OpenVoiceSession:
         ckpt_path = os.path.join(ckpt_dir, "checkpoint.pth")
 
         if not os.path.exists(ckpt_path) or not os.path.exists(config_path):
-            from huggingface_hub import hf_hub_download
             import shutil
+
+            from huggingface_hub import hf_hub_download
 
             os.makedirs(ckpt_dir, exist_ok=True)
             if not os.path.exists(ckpt_path):
@@ -86,9 +84,7 @@ class OpenVoiceSession:
                 )
                 shutil.copy2(dl, ckpt_path)
             if not os.path.exists(config_path):
-                dl = hf_hub_download(
-                    "myshell-ai/OpenVoiceV2", "converter/config.json"
-                )
+                dl = hf_hub_download("myshell-ai/OpenVoiceV2", "converter/config.json")
                 shutil.copy2(dl, config_path)
 
         from modules.openvoice.api import ToneColorConverter
@@ -124,8 +120,8 @@ class OpenVoiceSession:
             step = len(ref_audio) // n
             chunks = []
             for i in range(n):
-                c = ref_audio[i * step:(i + 1) * step]
-                rms = float(np.sqrt(np.mean(c ** 2)))
+                c = ref_audio[i * step : (i + 1) * step]
+                rms = float(np.sqrt(np.mean(c**2)))
                 if rms >= 0.008:
                     chunks.append(c)
             if not chunks:
@@ -155,9 +151,7 @@ class OpenVoiceSession:
             Converted float32 numpy array at 22050Hz.
         """
         if not self._loaded or self.tgt_se is None:
-            raise RuntimeError(
-                "Call load() and set_reference() before convert_chunk()"
-            )
+            raise RuntimeError("Call load() and set_reference() before convert_chunk()")
 
         import torch
         import torchaudio

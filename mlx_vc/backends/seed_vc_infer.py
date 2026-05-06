@@ -72,7 +72,9 @@ def main():
         sys.exit(1)
 
     sys.path.insert(0, seed_vc_ref)
-    os.environ.setdefault("HF_HUB_CACHE", os.path.join(seed_vc_ref, "checkpoints", "hf_cache"))
+    os.environ.setdefault(
+        "HF_HUB_CACHE", os.path.join(seed_vc_ref, "checkpoints", "hf_cache")
+    )
 
     # Patch BigVGAN for newer huggingface_hub compatibility
     _patch_bigvgan(seed_vc_ref)
@@ -88,14 +90,15 @@ def main():
         fp16=fp16,
     )
 
-    from inference import load_models, crossfade
-
     import librosa
+    import numpy as np
     import torch
     import torchaudio
-    import numpy as np
+    from inference import crossfade, load_models
 
-    model, semantic_fn, f0_fn, vocoder_fn, campplus_model, mel_fn, mel_fn_args = load_models(model_args)
+    model, semantic_fn, f0_fn, vocoder_fn, campplus_model, mel_fn, mel_fn_args = (
+        load_models(model_args)
+    )
 
     if torch.backends.mps.is_available():
         device = torch.device("mps")
@@ -133,12 +136,14 @@ def main():
         pos = 0
         while pos < source_16k.size(-1):
             if buf is None:
-                chunk = source_16k[:, pos: pos + 16000 * 30]
+                chunk = source_16k[:, pos : pos + 16000 * 30]
             else:
-                chunk = torch.cat([buf, source_16k[:, pos: pos + 16000 * (30 - overlap)]], dim=-1)
+                chunk = torch.cat(
+                    [buf, source_16k[:, pos : pos + 16000 * (30 - overlap)]], dim=-1
+                )
             S = semantic_fn(chunk)
-            chunks.append(S if pos == 0 else S[:, 50 * overlap:])
-            buf = chunk[:, -16000 * overlap:]
+            chunks.append(S if pos == 0 else S[:, 50 * overlap :])
+            buf = chunk[:, -16000 * overlap :]
             pos += 30 * 16000 if pos == 0 else chunk.size(-1) - 16000 * overlap
         S_source = torch.cat(chunks, dim=1)
 
@@ -148,16 +153,24 @@ def main():
     ref_mel = mel_fn(ref_tensor.float())
 
     # Speaker style
-    feat = torchaudio.compliance.kaldi.fbank(ref_16k, num_mel_bins=80, dither=0, sample_frequency=16000)
+    feat = torchaudio.compliance.kaldi.fbank(
+        ref_16k, num_mel_bins=80, dither=0, sample_frequency=16000
+    )
     feat = feat - feat.mean(dim=0, keepdim=True)
     style = campplus_model(feat.unsqueeze(0))
 
     # Length regulation
-    target_lengths = torch.LongTensor([int(source_mel.size(2) * length_adjust)]).to(device)
+    target_lengths = torch.LongTensor([int(source_mel.size(2) * length_adjust)]).to(
+        device
+    )
     target2_lengths = torch.LongTensor([ref_mel.size(2)]).to(device)
 
-    cond, _, _, _, _ = model.length_regulator(S_source, ylens=target_lengths, n_quantizers=3)
-    prompt_condition, _, _, _, _ = model.length_regulator(S_ref, ylens=target2_lengths, n_quantizers=3)
+    cond, _, _, _, _ = model.length_regulator(
+        S_source, ylens=target_lengths, n_quantizers=3
+    )
+    prompt_condition, _, _, _, _ = model.length_regulator(
+        S_ref, ylens=target2_lengths, n_quantizers=3
+    )
 
     # CFM inference with chunking
     max_source_window = max_context_window - ref_mel.size(2)
@@ -165,21 +178,27 @@ def main():
     wave_chunks = []
 
     while processed_frames < cond.size(1):
-        chunk_cond = cond[:, processed_frames: processed_frames + max_source_window]
+        chunk_cond = cond[:, processed_frames : processed_frames + max_source_window]
         is_last = processed_frames + max_source_window >= cond.size(1)
         cat_condition = torch.cat([prompt_condition, chunk_cond], dim=1)
 
-        with torch.inference_mode(), torch.autocast(
-            device_type=device.type,
-            dtype=torch.float16 if fp16 else torch.float32,
+        with (
+            torch.inference_mode(),
+            torch.autocast(
+                device_type=device.type,
+                dtype=torch.float16 if fp16 else torch.float32,
+            ),
         ):
             vc_target = model.cfm.inference(
                 cat_condition,
                 torch.LongTensor([cat_condition.size(1)]).to(device),
-                ref_mel, style, None, diffusion_steps,
+                ref_mel,
+                style,
+                None,
+                diffusion_steps,
                 inference_cfg_rate=cfg_rate,
             )
-            vc_target = vc_target[:, :, ref_mel.size(-1):]
+            vc_target = vc_target[:, :, ref_mel.size(-1) :]
             # Vocoder must be inside inference_mode too — otherwise passing
             # the inference-mode tensor into vocoder's autograd-tracked
             # convs raises "Inference tensors cannot be saved for backward".
@@ -195,19 +214,32 @@ def main():
             previous = vc_wave[0, -overlap_wave_len:]
             processed_frames += vc_target.size(2) - overlap_frame_len
         elif is_last:
-            wave_chunks.append(crossfade(previous.cpu().numpy(), vc_wave[0].cpu().numpy(), overlap_wave_len))
+            wave_chunks.append(
+                crossfade(
+                    previous.cpu().numpy(), vc_wave[0].cpu().numpy(), overlap_wave_len
+                )
+            )
             break
         else:
-            wave_chunks.append(crossfade(previous.cpu().numpy(), vc_wave[0, :-overlap_wave_len].cpu().numpy(), overlap_wave_len))
+            wave_chunks.append(
+                crossfade(
+                    previous.cpu().numpy(),
+                    vc_wave[0, :-overlap_wave_len].cpu().numpy(),
+                    overlap_wave_len,
+                )
+            )
             previous = vc_wave[0, -overlap_wave_len:]
             processed_frames += vc_target.size(2) - overlap_frame_len
 
     result = np.concatenate(wave_chunks)
     elapsed = time.time() - t0
-    print(f"Generated {len(result)/sr:.2f}s audio in {elapsed:.2f}s (RTF: {elapsed / (len(result)/sr):.3f})")
+    print(
+        f"Generated {len(result)/sr:.2f}s audio in {elapsed:.2f}s (RTF: {elapsed / (len(result)/sr):.3f})"
+    )
 
     # Save output
     import soundfile as sf
+
     os.makedirs(os.path.dirname(os.path.abspath(output)), exist_ok=True)
     sf.write(output, result, sr)
     print(f"Saved to {output}")

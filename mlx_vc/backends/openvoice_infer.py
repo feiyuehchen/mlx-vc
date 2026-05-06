@@ -34,10 +34,10 @@ def main():
 
     sys.path.insert(0, seed_vc_ref)
 
-    import torch
     import librosa
     import numpy as np
     import soundfile as sf
+    import torch
 
     if torch.backends.mps.is_available():
         device = "mps"
@@ -47,7 +47,9 @@ def main():
         device = "cpu"
 
     # Download checkpoint if needed
-    ckpt_dir = os.path.join(seed_vc_ref, "modules", "openvoice", "checkpoints_v2", "converter")
+    ckpt_dir = os.path.join(
+        seed_vc_ref, "modules", "openvoice", "checkpoints_v2", "converter"
+    )
     config_path = os.path.join(ckpt_dir, "config.json")
     ckpt_path = os.path.join(ckpt_dir, "checkpoint.pth")
 
@@ -55,9 +57,12 @@ def main():
         print("Downloading OpenVoice V2 checkpoint...")
         from huggingface_hub import hf_hub_download
 
-        downloaded = hf_hub_download("myshell-ai/OpenVoiceV2", "converter/checkpoint.pth")
+        downloaded = hf_hub_download(
+            "myshell-ai/OpenVoiceV2", "converter/checkpoint.pth"
+        )
         os.makedirs(ckpt_dir, exist_ok=True)
         import shutil
+
         shutil.copy2(downloaded, ckpt_path)
 
     if not os.path.exists(config_path):
@@ -66,6 +71,7 @@ def main():
         downloaded = hf_hub_download("myshell-ai/OpenVoiceV2", "converter/config.json")
         os.makedirs(ckpt_dir, exist_ok=True)
         import shutil
+
         shutil.copy2(downloaded, config_path)
 
     # Load model
@@ -90,8 +96,9 @@ def main():
     # single large segment when the reference has dead air or noise.
     print("Extracting speaker embeddings...")
 
-    def _segment_and_filter(audio_np: np.ndarray, target_len_s: float = 10.0,
-                             min_rms: float = 0.008):
+    def _segment_and_filter(
+        audio_np: np.ndarray, target_len_s: float = 10.0, min_rms: float = 0.008
+    ):
         """Chunk audio into ~target_len_s windows, drop low-energy chunks."""
         chunk_samples = int(target_len_s * sr)
         if len(audio_np) <= chunk_samples:
@@ -100,8 +107,8 @@ def main():
         step = len(audio_np) // n
         chunks = []
         for i in range(n):
-            chunk = audio_np[i * step:(i + 1) * step]
-            rms = float(np.sqrt(np.mean(chunk ** 2)))
+            chunk = audio_np[i * step : (i + 1) * step]
+            rms = float(np.sqrt(np.mean(chunk**2)))
             if rms >= min_rms:
                 chunks.append(chunk)
         return chunks or [audio_np]  # fall back to full if filter killed everything
@@ -118,8 +125,11 @@ def main():
     # seed-vc-ref's extract_se returns a [N, D] stack without averaging.
     # Official OpenVoice behavior is to mean-pool across segments.
     if tgt_se.dim() >= 2 and tgt_se.size(0) > 1:
-        tgt_se = tgt_se.mean(dim=0, keepdim=True).squeeze(0).unsqueeze(0) \
-            if tgt_se.dim() == 2 else tgt_se.mean(dim=0, keepdim=True)
+        tgt_se = (
+            tgt_se.mean(dim=0, keepdim=True).squeeze(0).unsqueeze(0)
+            if tgt_se.dim() == 2
+            else tgt_se.mean(dim=0, keepdim=True)
+        )
     if tgt_se.dim() == 1:
         tgt_se = tgt_se.unsqueeze(0)
 

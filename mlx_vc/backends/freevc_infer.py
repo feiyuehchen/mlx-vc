@@ -65,8 +65,8 @@ def main():
     # the pipeline inline using the public API and .to(device).
 
     import utils
-    from models import SynthesizerTrn
     from mel_processing import mel_spectrogram_torch
+    from models import SynthesizerTrn
     from speaker_encoder.voice_encoder import SpeakerEncoder
 
     if variant == "freevc-s":
@@ -157,7 +157,9 @@ def main():
 
     audio = audio[0][0].data.cpu().float().numpy()
     elapsed = time.time() - t0
-    print(f"Generated {len(audio)/sr:.2f}s audio in {elapsed:.2f}s (RTF {elapsed/(len(audio)/sr):.3f})")
+    print(
+        f"Generated {len(audio)/sr:.2f}s audio in {elapsed:.2f}s (RTF {elapsed/(len(audio)/sr):.3f})"
+    )
 
     os.makedirs(os.path.dirname(os.path.abspath(output)), exist_ok=True)
     sf.write(output, audio, sr)
@@ -169,6 +171,7 @@ def get_content(cmodel, y):
     but respects whatever device cmodel lives on.
     """
     import torch
+
     with torch.no_grad():
         c = cmodel.extract_features(y)[0]
     c = c.transpose(1, 2)

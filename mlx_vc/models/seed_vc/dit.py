@@ -122,7 +122,9 @@ class Attention(nn.Module):
         self.is_cross_attention = is_cross_attention
 
         if is_cross_attention:
-            self.wq = nn.Linear(config.hidden_dim, config.num_heads * config.head_dim, bias=False)
+            self.wq = nn.Linear(
+                config.hidden_dim, config.num_heads * config.head_dim, bias=False
+            )
             self.wkv = nn.Linear(
                 config.context_dim,
                 2 * config.num_heads * config.head_dim,
@@ -132,7 +134,9 @@ class Attention(nn.Module):
             total_dim = (config.num_heads + 2 * config.num_heads) * config.head_dim
             self.wqkv = nn.Linear(config.hidden_dim, total_dim, bias=False)
 
-        self.wo = nn.Linear(config.num_heads * config.head_dim, config.hidden_dim, bias=False)
+        self.wo = nn.Linear(
+            config.num_heads * config.head_dim, config.hidden_dim, bias=False
+        )
         self.scale = math.sqrt(self.head_dim)
 
     def __call__(
@@ -280,18 +284,20 @@ class Transformer(nn.Module):
     ) -> mx.array:
         freqs_cis = self.freqs_cis[input_pos]
         context_freqs_cis = (
-            self.freqs_cis[context_input_pos]
-            if context_input_pos is not None
-            else None
+            self.freqs_cis[context_input_pos] if context_input_pos is not None else None
         )
 
         skip_list = []
         for i, layer in enumerate(self.layers):
-            skip_in = skip_list.pop(-1) if (
-                self.config.uvit_skip_connection
-                and i in self.layers_receive_skip
-                and skip_list
-            ) else None
+            skip_in = (
+                skip_list.pop(-1)
+                if (
+                    self.config.uvit_skip_connection
+                    and i in self.layers_receive_skip
+                    and skip_list
+                )
+                else None
+            )
 
             x = layer(x, c, freqs_cis, mask, context, context_freqs_cis, skip_in)
 

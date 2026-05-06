@@ -93,6 +93,7 @@ class RealtimeVC:
         self.device = self.session.device
 
         import librosa
+
         ref_audio, _ = librosa.load(self.reference_path, sr=self.sr)
         print(f"Reference: {self.reference_path} ({len(ref_audio)/self.sr:.1f}s)")
 
@@ -108,9 +109,7 @@ class RealtimeVC:
         self._setup_openvoice()
 
         # Device sample rates
-        in_sr = int(
-            sd.query_devices(self.input_device, "input")["default_samplerate"]
-        )
+        in_sr = int(sd.query_devices(self.input_device, "input")["default_samplerate"])
         out_sr = int(
             sd.query_devices(self.output_device, "output")["default_samplerate"]
         )
@@ -147,7 +146,7 @@ class RealtimeVC:
         in_stream_profile.stop()
         in_stream_profile.close()
         noise_profile = noise_data[:, 0].copy()
-        noise_rms = np.sqrt(np.mean(noise_profile ** 2))
+        noise_rms = np.sqrt(np.mean(noise_profile**2))
         gate_threshold = max(noise_rms * 4.0, 0.003)
         print(f"  Noise floor: {noise_rms:.5f}, gate: {gate_threshold:.5f}")
 
@@ -166,8 +165,8 @@ class RealtimeVC:
         def in_callback(indata, frames, time_info, status):
             mono = indata[:, 0].copy()
             with lock:
-                input_buffer[:-len(mono)] = input_buffer[len(mono):]
-                input_buffer[-len(mono):] = mono
+                input_buffer[: -len(mono)] = input_buffer[len(mono) :]
+                input_buffer[-len(mono) :] = mono
 
         def out_callback(outdata, frames, time_info, status):
             if output_queue:
@@ -197,7 +196,7 @@ class RealtimeVC:
                     raw = input_buffer[-in_block:].copy()
 
                 # Energy gate
-                rms = np.sqrt(np.mean(raw ** 2))
+                rms = np.sqrt(np.mean(raw**2))
                 if rms < gate_threshold:
                     output_queue.append(np.zeros(out_block, dtype=np.float32))
                     if mon_sr:
@@ -209,8 +208,11 @@ class RealtimeVC:
                 try:
                     # Light denoise (prop_decrease=0.4 keeps more voice detail)
                     raw_clean = nr.reduce_noise(
-                        y=raw, sr=in_sr, y_noise=noise_profile,
-                        stationary=True, prop_decrease=0.4,
+                        y=raw,
+                        sr=in_sr,
+                        y_noise=noise_profile,
+                        stationary=True,
+                        prop_decrease=0.4,
                     )
 
                     # Resample to model SR
@@ -249,16 +251,22 @@ class RealtimeVC:
         try:
             streams.append(
                 sd.InputStream(
-                    samplerate=in_sr, blocksize=in_block,
-                    device=self.input_device, channels=1,
-                    dtype="float32", callback=in_callback,
+                    samplerate=in_sr,
+                    blocksize=in_block,
+                    device=self.input_device,
+                    channels=1,
+                    dtype="float32",
+                    callback=in_callback,
                 )
             )
             streams.append(
                 sd.OutputStream(
-                    samplerate=out_sr, blocksize=out_block,
-                    device=self.output_device, channels=1,
-                    dtype="float32", callback=out_callback,
+                    samplerate=out_sr,
+                    blocksize=out_block,
+                    device=self.output_device,
+                    channels=1,
+                    dtype="float32",
+                    callback=out_callback,
                 )
             )
             if mon_sr:
@@ -266,8 +274,10 @@ class RealtimeVC:
                     sd.OutputStream(
                         samplerate=mon_sr,
                         blocksize=int(self.block_time * mon_sr),
-                        device=self.monitor_device, channels=1,
-                        dtype="float32", callback=mon_callback,
+                        device=self.monitor_device,
+                        channels=1,
+                        dtype="float32",
+                        callback=mon_callback,
                     )
                 )
 
@@ -295,32 +305,49 @@ def main():
         description="Real-time voice conversion (OpenVoice V2)"
     )
     parser.add_argument(
-        "--reference", type=str, required=True,
+        "--reference",
+        type=str,
+        required=True,
         help="Path to target speaker audio",
     )
     parser.add_argument(
-        "--list-devices", action="store_true", help="List audio devices and exit",
+        "--list-devices",
+        action="store_true",
+        help="List audio devices and exit",
     )
     parser.add_argument(
-        "--input-device", type=int, default=None, help="Input device index",
+        "--input-device",
+        type=int,
+        default=None,
+        help="Input device index",
     )
     parser.add_argument(
-        "--output-device", type=int, default=None, help="Output device index",
+        "--output-device",
+        type=int,
+        default=None,
+        help="Output device index",
     )
     parser.add_argument(
-        "--block-time", type=float, default=0.3,
+        "--block-time",
+        type=float,
+        default=0.3,
         help="Block size in seconds (default: 0.3)",
     )
     parser.add_argument(
-        "--tau", type=float, default=0.3,
+        "--tau",
+        type=float,
+        default=0.3,
         help="Style control: 0=more target, 1=more source (default: 0.3)",
     )
     parser.add_argument(
-        "--discord", action="store_true",
+        "--discord",
+        action="store_true",
         help="Discord mode: output to BlackHole, monitor to headphones",
     )
     parser.add_argument(
-        "--monitor", type=int, default=None,
+        "--monitor",
+        type=int,
+        default=None,
         help="Monitor device index (hear yourself)",
     )
 

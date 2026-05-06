@@ -27,6 +27,7 @@ import time
 
 def _whisper_transcribe(path: str) -> str:
     import whisper
+
     m = whisper.load_model("small")
     return m.transcribe(path, fp16=False, verbose=False).get("text", "").strip()
 
@@ -86,11 +87,12 @@ def main():
         ref_text = _whisper_transcribe(effective_ref)
 
     print(f"Loading mlx-audio model: {hf_model}")
+    import inspect
+
+    import mlx.core as mx
     import numpy as np
     import soundfile as sf
     from mlx_audio.tts.utils import load_model
-    import mlx.core as mx
-    import inspect
 
     model = load_model(hf_model)
     sr = getattr(model, "sample_rate", 24000)

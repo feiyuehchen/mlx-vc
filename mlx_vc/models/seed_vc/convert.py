@@ -55,12 +55,18 @@ def convert_torch_to_mlx(checkpoint_path: str, output_path: str):
         mlx_dict = {}
 
         for key, value in comp_dict.items():
-            np_val = value.numpy().astype(np.float32) if hasattr(value, "numpy") else np.array(value, dtype=np.float32)
+            np_val = (
+                value.numpy().astype(np.float32)
+                if hasattr(value, "numpy")
+                else np.array(value, dtype=np.float32)
+            )
 
             # Transpose Conv1d weights: PyTorch [O, I, K] -> MLX [O, K, I]
             if "conv" in key and "weight" in key and np_val.ndim == 3:
                 np_val = np.transpose(np_val, (0, 2, 1))
-                print(f"  Transposed conv weight: {component_name}.{key} {np_val.shape}")
+                print(
+                    f"  Transposed conv weight: {component_name}.{key} {np_val.shape}"
+                )
 
             mlx_dict[key] = mx.array(np_val)
 
@@ -74,7 +80,9 @@ def convert_torch_to_mlx(checkpoint_path: str, output_path: str):
 
 def main():
     parser = argparse.ArgumentParser(description="Convert Seed-VC weights to MLX")
-    parser.add_argument("--checkpoint", type=str, required=True, help="Path to .pth file")
+    parser.add_argument(
+        "--checkpoint", type=str, required=True, help="Path to .pth file"
+    )
     parser.add_argument("--output", type=str, required=True, help="Output directory")
     args = parser.parse_args()
     convert_torch_to_mlx(args.checkpoint, args.output)

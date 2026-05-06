@@ -13,14 +13,12 @@ Run with the mlx-vc venv after starting `python -m mlx_vc.server`:
 """
 
 import argparse
+import os
 import statistics
 import time
 from pathlib import Path
 
 import requests
-
-
-import os
 
 # Override via MLX_VC_BENCH_SOURCE / MLX_VC_BENCH_REFERENCE env vars,
 # or pass --source / --reference on the CLI.
@@ -71,6 +69,7 @@ def bench_openvoice_in_process():
     print("-" * 50)
     import librosa
     import numpy as np
+
     from mlx_vc.realtime import OpenVoiceSession
 
     s = OpenVoiceSession()
@@ -134,10 +133,7 @@ def bench_batch_endpoint(server: str):
         if r.get("status") == "error":
             print(f"FAILED: {r.get('error')}")
             continue
-        print(
-            f"wall={fmt_ms(r['wall_s'])}, "
-            f"infer={fmt_ms(r['infer_s'])}"
-        )
+        print(f"wall={fmt_ms(r['wall_s'])}, " f"infer={fmt_ms(r['infer_s'])}")
         results.append(r)
     return results
 
@@ -146,10 +142,16 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--server-port", type=int, default=8000)
     parser.add_argument("--skip-server", action="store_true")
-    parser.add_argument("--source", default=SOURCE,
-                        help="Source audio file (default from $MLX_VC_BENCH_SOURCE)")
-    parser.add_argument("--reference", default=REFERENCE,
-                        help="Reference audio file (default from $MLX_VC_BENCH_REFERENCE)")
+    parser.add_argument(
+        "--source",
+        default=SOURCE,
+        help="Source audio file (default from $MLX_VC_BENCH_SOURCE)",
+    )
+    parser.add_argument(
+        "--reference",
+        default=REFERENCE,
+        help="Reference audio file (default from $MLX_VC_BENCH_REFERENCE)",
+    )
     args = parser.parse_args()
     global SOURCE, REFERENCE
     SOURCE = args.source

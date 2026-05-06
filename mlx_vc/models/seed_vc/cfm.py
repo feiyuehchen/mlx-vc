@@ -39,7 +39,11 @@ class DiT(nn.Module):
             hidden_dim=hidden_dim,
             num_heads=config.num_heads,
             depth=config.depth,
-            head_dim=config.head_dim if hasattr(config, "head_dim") else hidden_dim // config.num_heads,
+            head_dim=(
+                config.head_dim
+                if hasattr(config, "head_dim")
+                else hidden_dim // config.num_heads
+            ),
             block_size=config.block_size,
             in_channels=in_channels,
             uvit_skip_connection=config.uvit_skip_connection,
@@ -202,24 +206,25 @@ class CFM(nn.Module):
                 stacked_prompt = mx.concatenate(
                     [prompt_x, mx.zeros_like(prompt_x)], axis=0
                 )
-                stacked_style = mx.concatenate(
-                    [style, mx.zeros_like(style)], axis=0
-                )
+                stacked_style = mx.concatenate([style, mx.zeros_like(style)], axis=0)
                 stacked_mu = mx.concatenate([mu, mx.zeros_like(mu)], axis=0)
-                stacked_t = mx.concatenate(
-                    [mx.array([t]), mx.array([t])], axis=0
-                )
+                stacked_t = mx.concatenate([mx.array([t]), mx.array([t])], axis=0)
 
                 dphi_dt = self.estimator(
-                    stacked_x, stacked_prompt, x_lens, stacked_t, stacked_style, stacked_mu
+                    stacked_x,
+                    stacked_prompt,
+                    x_lens,
+                    stacked_t,
+                    stacked_style,
+                    stacked_mu,
                 )
 
                 cond, uncond = mx.split(dphi_dt, 2, axis=0)
-                dphi_dt = (1.0 + inference_cfg_rate) * cond - inference_cfg_rate * uncond
+                dphi_dt = (
+                    1.0 + inference_cfg_rate
+                ) * cond - inference_cfg_rate * uncond
             else:
-                dphi_dt = self.estimator(
-                    x, prompt_x, x_lens, mx.array([t]), style, mu
-                )
+                dphi_dt = self.estimator(x, prompt_x, x_lens, mx.array([t]), style, mu)
 
             x = x + dt * dphi_dt
             t = t + dt

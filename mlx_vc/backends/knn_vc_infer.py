@@ -60,10 +60,12 @@ def main():
 
     # Monkey-patch torchaudio.load to use soundfile (avoids torchcodec/ffmpeg issues)
     import torchaudio
+
     _orig_load = torchaudio.load
 
     def _patched_load(path, **kwargs):
         import librosa
+
         y, sr_orig = librosa.load(str(path), sr=None, mono=True)
         y = y[None, :]  # [1, samples]
         return torch.FloatTensor(y), sr_orig

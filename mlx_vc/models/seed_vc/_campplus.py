@@ -25,14 +25,10 @@ def load_campplus(device=None):
             if not ckpt_path.exists():
                 from huggingface_hub import hf_hub_download
 
-                ckpt_path = hf_hub_download(
-                    "funasr/campplus", "campplus_cn_common.bin"
-                )
+                ckpt_path = hf_hub_download("funasr/campplus", "campplus_cn_common.bin")
 
             model = CAMPPlus(feat_dim=80, embedding_size=192)
-            model.load_state_dict(
-                torch.load(str(ckpt_path), map_location="cpu")
-            )
+            model.load_state_dict(torch.load(str(ckpt_path), map_location="cpu"))
             model.eval()
             if device is not None:
                 model = model.to(device)

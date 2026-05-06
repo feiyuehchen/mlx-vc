@@ -17,7 +17,6 @@ from typing import Dict, List, Optional
 from mlx_vc.audio_io import save_audio
 from mlx_vc.backend import BACKENDS, run_backend
 
-
 # Global semaphore: only one model inference at a time (single GPU)
 MODEL_LOCK = asyncio.Semaphore(1)
 
@@ -47,9 +46,9 @@ ETA_SECONDS = {
 # voice cloning) so source audio is Whisper-transcribed before synthesis.
 _TTS_CLONE_MODELS = {
     "cosyvoice": "mlx-community/chatterbox-fp16",  # Resemble AI Chatterbox
-    "sesame": "mlx-community/csm-1b",                # Sesame CSM-1B
-    "outetts": "OuteAI/Llama-OuteTTS-1.0-1B",        # OuteTTS 1.0
-    "dia": "mlx-community/Dia-1.6B",                 # Nari Labs Dia
+    "sesame": "mlx-community/csm-1b",  # Sesame CSM-1B
+    "outetts": "OuteAI/Llama-OuteTTS-1.0-1B",  # OuteTTS 1.0
+    "dia": "mlx-community/Dia-1.6B",  # Nari Labs Dia
 }
 
 # Per-model maximum reference duration (seconds). None means "no trim".
@@ -97,7 +96,7 @@ def _knn_vc_extra_refs(reference: str) -> List[str]:
     # Strip common suffixes to find the speaker prefix
     for suffix in ("_ref", "_src", "_10s", "_clean", "_3min"):
         if stem.endswith(suffix):
-            stem = stem[:-len(suffix)]
+            stem = stem[: -len(suffix)]
             break
     # Only use demucs-denoised siblings, never the raw long recording
     # (too noisy + too slow to process into a matching pool).
@@ -183,9 +182,7 @@ class JobManager:
             tmp_dir=tmp_dir,
         )
         for model in models:
-            job.tasks[model] = TaskState(
-                model=model, eta_s=ETA_SECONDS.get(model, 10)
-            )
+            job.tasks[model] = TaskState(model=model, eta_s=ETA_SECONDS.get(model, 10))
         self.jobs[job_id] = job
         return job
 
@@ -194,9 +191,7 @@ class JobManager:
 
     async def run_job(self, job: Job) -> None:
         """Schedule all tasks. Fast models run first."""
-        ordered_models = sorted(
-            job.tasks.keys(), key=lambda m: ETA_SECONDS.get(m, 10)
-        )
+        ordered_models = sorted(job.tasks.keys(), key=lambda m: ETA_SECONDS.get(m, 10))
         # Spawn one async task per model — they all wait on MODEL_LOCK
         await asyncio.gather(
             *[self._run_task(job, model) for model in ordered_models],
@@ -248,6 +243,7 @@ class JobManager:
             # Use the persistent OpenVoiceSession singleton — avoids the
             # ~10s model load that the subprocess backend incurs each call.
             import librosa
+
             from mlx_vc.realtime import get_session
 
             session = get_session()

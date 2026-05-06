@@ -44,10 +44,14 @@ def separate_vocals(input_path: Path, work_dir: Path) -> Path:
 
     run(
         [
-            sys.executable, "-m", "demucs",
+            sys.executable,
+            "-m",
+            "demucs",
             "--two-stems=vocals",
-            "-n", "htdemucs_ft",
-            "--out", str(work_dir),
+            "-n",
+            "htdemucs_ft",
+            "--out",
+            str(work_dir),
             str(input_path),
         ]
     )
@@ -71,13 +75,20 @@ def trim_and_copy(
     """Extract [start_sec, start_sec + duration_sec] from vocals → mono 22.05 kHz WAV."""
     run(
         [
-            "ffmpeg", "-y",
-            "-i", str(vocals),
-            "-ss", str(start_sec),
-            "-t", str(duration_sec),
-            "-ar", "22050",          # standard VC sample rate
-            "-ac", "1",              # mono
-            "-c:a", "pcm_s16le",
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(vocals),
+            "-ss",
+            str(start_sec),
+            "-t",
+            str(duration_sec),
+            "-ar",
+            "22050",  # standard VC sample rate
+            "-ac",
+            "1",  # mono
+            "-c:a",
+            "pcm_s16le",
             str(output_path),
         ],
         capture_output=True,
@@ -88,19 +99,38 @@ def trim_and_copy(
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--input", required=True,
-                        help="Long recording (WAV/M4A/MP3 — anything ffmpeg reads)")
-    parser.add_argument("--output_dir", required=True,
-                        help="Where to write the trimmed reference WAVs")
-    parser.add_argument("--name", default=None,
-                        help="Output stem (default: input filename stem). "
-                             "Outputs <name>_ref_clean.wav and <name>_ref_3min.wav.")
-    parser.add_argument("--start_sec", type=float, default=30.0,
-                        help="Skip first N seconds (intros, silence)")
-    parser.add_argument("--clean_seconds", type=float, default=60.0,
-                        help="Length of <name>_ref_clean.wav (default 60s)")
-    parser.add_argument("--long_seconds", type=float, default=180.0,
-                        help="Length of <name>_ref_3min.wav (default 180s)")
+    parser.add_argument(
+        "--input",
+        required=True,
+        help="Long recording (WAV/M4A/MP3 — anything ffmpeg reads)",
+    )
+    parser.add_argument(
+        "--output_dir", required=True, help="Where to write the trimmed reference WAVs"
+    )
+    parser.add_argument(
+        "--name",
+        default=None,
+        help="Output stem (default: input filename stem). "
+        "Outputs <name>_ref_clean.wav and <name>_ref_3min.wav.",
+    )
+    parser.add_argument(
+        "--start_sec",
+        type=float,
+        default=30.0,
+        help="Skip first N seconds (intros, silence)",
+    )
+    parser.add_argument(
+        "--clean_seconds",
+        type=float,
+        default=60.0,
+        help="Length of <name>_ref_clean.wav (default 60s)",
+    )
+    parser.add_argument(
+        "--long_seconds",
+        type=float,
+        default=180.0,
+        help="Length of <name>_ref_3min.wav (default 180s)",
+    )
     args = parser.parse_args()
 
     input_path = Path(args.input).resolve()
@@ -129,7 +159,9 @@ def main():
 
     print("\nDone.")
     print(f"  {clean_path.name} — default reference for most VC models")
-    print(f"  {long_path.name} — pass to kNN-VC via `extra_references` for denser matching pool")
+    print(
+        f"  {long_path.name} — pass to kNN-VC via `extra_references` for denser matching pool"
+    )
 
 
 if __name__ == "__main__":

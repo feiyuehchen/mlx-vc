@@ -143,7 +143,9 @@ def run_backend(
 
         if result.returncode != 0:
             stderr = result.stderr if not verbose else ""
-            raise RuntimeError(f"Backend {backend} failed (exit {result.returncode})\n{stderr}")
+            raise RuntimeError(
+                f"Backend {backend} failed (exit {result.returncode})\n{stderr}"
+            )
 
         return load_audio(output, sample_rate=sr)
     finally:

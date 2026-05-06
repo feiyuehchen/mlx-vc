@@ -159,7 +159,9 @@ def main():
 
     # Stub torchaudio APIs removed in recent releases (s3prl still references them)
     import types
+
     import torchaudio
+
     if not hasattr(torchaudio, "set_audio_backend"):
         torchaudio.set_audio_backend = lambda *a, **k: None
     if not hasattr(torchaudio, "sox_effects"):
@@ -189,7 +191,9 @@ def main():
         )
         sys.exit(1)
 
-    from src.runtime.speaker_verification.verification import init_model as init_sv_model
+    from src.runtime.speaker_verification.verification import (
+        init_model as init_sv_model,
+    )
 
     sv_model = init_sv_model("wavlm_large", sv_ckpt)
     sv_model = sv_model.to(device).eval()
@@ -208,8 +212,14 @@ def main():
 
     vocos = torch.jit.load(vocoder_path).to(device)
     mel_extractor = MelSpectrogramFeatures(
-        sample_rate=16000, n_fft=1024, win_size=640, hop_length=160,
-        n_mels=80, fmin=0, fmax=8000, center=True,
+        sample_rate=16000,
+        n_fft=1024,
+        win_size=640,
+        hop_length=160,
+        n_mels=80,
+        fmin=0,
+        fmax=8000,
+        center=True,
     ).to(device)
 
     # Speaker embedding from reference (SpeechBrain ECAPA 192-d -> project to 256-d)
@@ -240,8 +250,10 @@ def main():
         if peak > 0.98:
             result = result * (0.95 / peak)  # avoid hard clipping
     sr = 16000
-    print(f"Generated {len(result)/sr:.2f}s audio in {elapsed:.2f}s "
-          f"(RTF {infer_time / (len(result)/sr):.3f})")
+    print(
+        f"Generated {len(result)/sr:.2f}s audio in {elapsed:.2f}s "
+        f"(RTF {infer_time / (len(result)/sr):.3f})"
+    )
 
     os.makedirs(os.path.dirname(os.path.abspath(output)), exist_ok=True)
     sf.write(output, result, sr)

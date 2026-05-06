@@ -37,7 +37,6 @@ from pathlib import Path
 
 import numpy as np
 
-
 # ---------------------------------------------------------------------------
 # Whisper + text normalization for WER
 # ---------------------------------------------------------------------------
@@ -49,6 +48,7 @@ def _whisper_model():
     global _WHISPER_MODEL
     if _WHISPER_MODEL is None:
         import whisper
+
         _WHISPER_MODEL = whisper.load_model("small")
     return _WHISPER_MODEL
 
@@ -102,6 +102,7 @@ def _ecapa():
         # a synthetic spec so import succeeds on hosts without a working
         # torchcodec dylib.
         import types as _types
+
         for _m in ("torchcodec", "torchcodec.decoders", "torchcodec.decoders._core"):
             if _m not in sys.modules:
                 sm = _types.ModuleType(_m)
@@ -110,6 +111,7 @@ def _ecapa():
                 )
                 sys.modules[_m] = sm
         from speechbrain.inference.classifiers import EncoderClassifier
+
         _ECAPA = EncoderClassifier.from_hparams(
             source="speechbrain/spkrec-ecapa-voxceleb",
             savedir=os.path.expanduser("~/.cache/sb_ecapa"),
@@ -121,6 +123,7 @@ def _ecapa():
 def speaker_embedding(path: str) -> np.ndarray:
     import librosa
     import torch
+
     model = _ecapa()
     wav, _ = librosa.load(path, sr=16000, mono=True)
     wav_t = torch.from_numpy(wav).unsqueeze(0)
@@ -147,13 +150,14 @@ _NMR = None  # non-matching reference tensor
 def _squim(nmr_path: str):
     global _SQUIM, _NMR
     if _SQUIM is None:
-        import torchaudio
         import librosa
         import torch
+        import torchaudio
+
         _SQUIM = torchaudio.pipelines.SQUIM_SUBJECTIVE.get_model()
         nmr, _ = librosa.load(nmr_path, sr=16000, mono=True)
         # SQUIM subjective wants ≥ 1s context; cap at 10s of clean speech
-        nmr = nmr[:16000 * 10]
+        nmr = nmr[: 16000 * 10]
         _NMR = torch.from_numpy(nmr).unsqueeze(0)
     return _SQUIM
 
@@ -161,6 +165,7 @@ def _squim(nmr_path: str):
 def utmos(path: str, nmr_path: str) -> float:
     import librosa
     import torch
+
     model = _squim(nmr_path)
     wav, _ = librosa.load(path, sr=16000, mono=True)
     wav_t = torch.from_numpy(wav).unsqueeze(0)
@@ -172,6 +177,7 @@ def utmos(path: str, nmr_path: str) -> float:
 # ---------------------------------------------------------------------------
 # Main evaluation
 # ---------------------------------------------------------------------------
+
 
 def evaluate(source: str, reference: str, outputs: list, nmr_path: str = None):
     """Return list of dicts {name, utmos, secs, wer}."""
@@ -210,11 +216,16 @@ def evaluate(source: str, reference: str, outputs: list, nmr_path: str = None):
             hyp = ""
             w = float("nan")
             print(f"  wer failed: {e}")
-        rows.append({
-            "name": name, "path": path,
-            "utmos": u, "secs": s, "wer": w,
-            "hyp_text": hyp,
-        })
+        rows.append(
+            {
+                "name": name,
+                "path": path,
+                "utmos": u,
+                "secs": s,
+                "wer": w,
+                "hyp_text": hyp,
+            }
+        )
         print(f"  UTMOS={u:.2f}  SECS={s:.3f}  WER={w:.2f}")
         print()
 
@@ -233,9 +244,9 @@ def print_table(rows):
     print(f"{'model':20s} {'UTMOS↑':>8s} {'SECS↑':>8s} {'WER↓':>8s}")
     print("-" * 76)
     for r in rows:
-        u = f"{r['utmos']:.2f}" if not np.isnan(r['utmos']) else "—"
-        s = f"{r['secs']:.3f}" if not np.isnan(r['secs']) else "—"
-        w = f"{r['wer']:.2f}" if not np.isnan(r['wer']) else "—"
+        u = f"{r['utmos']:.2f}" if not np.isnan(r["utmos"]) else "—"
+        s = f"{r['secs']:.3f}" if not np.isnan(r["secs"]) else "—"
+        w = f"{r['wer']:.2f}" if not np.isnan(r["wer"]) else "—"
         print(f"{r['name']:20s} {u:>8s} {s:>8s} {w:>8s}")
     print("=" * 76)
     print("UTMOS: 1–5, higher = more natural / cleaner (no-reference MOS)")
@@ -246,9 +257,15 @@ def print_table(rows):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--source", required=True, help="Source audio path")
-    parser.add_argument("--reference", required=True, help="Reference (target speaker) audio path")
-    parser.add_argument("--outputs", nargs="+", required=True,
-                        help="Output WAV files to score (one per model)")
+    parser.add_argument(
+        "--reference", required=True, help="Reference (target speaker) audio path"
+    )
+    parser.add_argument(
+        "--outputs",
+        nargs="+",
+        required=True,
+        help="Output WAV files to score (one per model)",
+    )
     parser.add_argument("--json", default=None, help="Save results as JSON")
     args = parser.parse_args()
 

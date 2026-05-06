@@ -28,11 +28,11 @@ def test_get_vc_model_unknown_raises():
 def test_model_wrappers_have_convert_method():
     """Each model wrapper class should have a convert() method."""
     from mlx_vc.models.cosyvoice import CosyVoiceVC
-    from mlx_vc.models.seed_vc import SeedVC
-    from mlx_vc.models.openvoice import OpenVoiceVC
     from mlx_vc.models.knn_vc import KnnVC
     from mlx_vc.models.meanvc import MeanVC
+    from mlx_vc.models.openvoice import OpenVoiceVC
     from mlx_vc.models.rvc import RVCVC
+    from mlx_vc.models.seed_vc import SeedVC
 
     for cls in [CosyVoiceVC, SeedVC, OpenVoiceVC, KnnVC, MeanVC, RVCVC]:
         assert hasattr(cls, "convert"), f"{cls.__name__} missing convert()"
@@ -40,10 +40,10 @@ def test_model_wrappers_have_convert_method():
 
 def test_model_wrappers_have_model_info():
     """Each model wrapper should expose model_info property."""
-    from mlx_vc.models.seed_vc import SeedVC
-    from mlx_vc.models.openvoice import OpenVoiceVC
     from mlx_vc.models.knn_vc import KnnVC
     from mlx_vc.models.meanvc import MeanVC
+    from mlx_vc.models.openvoice import OpenVoiceVC
+    from mlx_vc.models.seed_vc import SeedVC
 
     for cls in [SeedVC, OpenVoiceVC, KnnVC, MeanVC]:
         instance = cls(verbose=False)

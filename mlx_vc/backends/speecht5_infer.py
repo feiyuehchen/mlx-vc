@@ -33,8 +33,8 @@ def main():
     import torch
     from transformers import (
         SpeechT5ForSpeechToSpeech,
-        SpeechT5Processor,
         SpeechT5HifiGan,
+        SpeechT5Processor,
     )
 
     if torch.backends.mps.is_available():
@@ -46,8 +46,14 @@ def main():
 
     print("Loading SpeechT5 VC...")
     processor = SpeechT5Processor.from_pretrained("microsoft/speecht5_vc")
-    model = SpeechT5ForSpeechToSpeech.from_pretrained("microsoft/speecht5_vc").to(device).eval()
-    vocoder = SpeechT5HifiGan.from_pretrained("microsoft/speecht5_hifigan").to(device).eval()
+    model = (
+        SpeechT5ForSpeechToSpeech.from_pretrained("microsoft/speecht5_vc")
+        .to(device)
+        .eval()
+    )
+    vocoder = (
+        SpeechT5HifiGan.from_pretrained("microsoft/speecht5_hifigan").to(device).eval()
+    )
 
     # Speaker embedding: use SpeechBrain's ECAPA via x-vector from reference.
     # The SpeechT5 VC docs use a fixed x-vector from CMU-ARCTIC; to get
@@ -56,6 +62,7 @@ def main():
     print("Extracting x-vector from reference...")
     # Stub torchcodec (broken .dylib on this Mac)
     import types as _types
+
     for _m in ("torchcodec", "torchcodec.decoders", "torchcodec.decoders._core"):
         if _m not in sys.modules:
             sm = _types.ModuleType(_m)
@@ -88,9 +95,7 @@ def main():
     print("Converting...")
     t0 = time.time()
     with torch.no_grad():
-        speech = model.generate_speech(
-            input_values, speaker_embedding, vocoder=vocoder
-        )
+        speech = model.generate_speech(input_values, speaker_embedding, vocoder=vocoder)
     elapsed = time.time() - t0
 
     audio = speech.float().cpu().numpy()
