@@ -15,6 +15,7 @@ Usage:
 """
 
 import json
+import logging
 import os
 import subprocess
 import sys
@@ -25,6 +26,8 @@ from typing import Optional
 import numpy as np
 
 from mlx_vc.audio_io import load_audio
+
+log = logging.getLogger(__name__)
 
 # Map backend names to their inference scripts
 _SCRIPT_DIR = Path(__file__).parent / "backends"
@@ -104,10 +107,10 @@ def run_backend(
     Returns:
         Converted audio as numpy array
     """
+    from mlx_vc.exceptions import BackendError, BackendNotFoundError, ConversionError
+
     if backend not in BACKENDS:
-        raise ValueError(
-            f"Unknown backend: {backend}. Available: {list(BACKENDS.keys())}"
-        )
+        raise BackendNotFoundError(backend, list(BACKENDS.keys()))
 
     info = BACKENDS[backend]
     script = _SCRIPT_DIR / info["script"]
@@ -133,7 +136,7 @@ def run_backend(
         args_json = json.dumps(call_args)
 
         if verbose:
-            print(f"[{backend}] Running inference...")
+            log.info("[%s] running inference", backend)
 
         result = subprocess.run(
             [sys.executable, str(script), "--args", args_json],
@@ -142,9 +145,19 @@ def run_backend(
         )
 
         if result.returncode != 0:
-            stderr = result.stderr if not verbose else ""
-            raise RuntimeError(
-                f"Backend {backend} failed (exit {result.returncode})\n{stderr}"
+            stderr = (result.stderr or "")[-2000:] if not verbose else ""
+            raise BackendError(
+                backend,
+                "subprocess returned non-zero",
+                returncode=result.returncode,
+                stderr=stderr,
+            )
+
+        if not os.path.exists(output) or os.path.getsize(output) < 100:
+            raise ConversionError(
+                backend,
+                f"output not produced or too small: {output!r}",
+                returncode=result.returncode,
             )
 
         return load_audio(output, sample_rate=sr)

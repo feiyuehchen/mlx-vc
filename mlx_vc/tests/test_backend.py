@@ -36,16 +36,36 @@ def test_backend_scripts_exist():
 
 
 def test_run_backend_unknown_raises():
-    """Running an unknown backend should raise ValueError."""
-    with pytest.raises(ValueError, match="Unknown backend"):
+    """Running an unknown backend raises BackendNotFoundError."""
+    from mlx_vc.exceptions import BackendNotFoundError
+
+    with pytest.raises(BackendNotFoundError, match="unknown backend"):
         run_backend("nonexistent-model", source="a.wav", reference="b.wav")
 
 
 def test_run_backend_missing_source_raises():
-    """Running with a nonexistent source file should raise RuntimeError."""
-    with pytest.raises(RuntimeError):
+    """Running with a nonexistent source file raises BackendError (the
+    subprocess returns non-zero)."""
+    from mlx_vc.exceptions import BackendError
+
+    with pytest.raises(BackendError):
         run_backend(
             "openvoice",
             source="/nonexistent/source.wav",
             reference="/nonexistent/ref.wav",
         )
+
+
+def test_backend_error_hierarchy():
+    """BackendNotFoundError and ConversionError are both BackendError; all
+    subclasses derive from MlxVcError."""
+    from mlx_vc.exceptions import (
+        BackendError,
+        BackendNotFoundError,
+        ConversionError,
+        MlxVcError,
+    )
+
+    assert issubclass(BackendNotFoundError, BackendError)
+    assert issubclass(ConversionError, BackendError)
+    assert issubclass(BackendError, MlxVcError)

@@ -6,6 +6,7 @@ so they don't fight over the GPU.
 """
 
 import asyncio
+import logging
 import os
 import shutil
 import time
@@ -16,6 +17,8 @@ from typing import Dict, List, Optional
 
 from mlx_vc.audio_io import save_audio
 from mlx_vc.backend import BACKENDS, run_backend
+
+log = logging.getLogger(__name__)
 
 # Global semaphore: only one model inference at a time (single GPU)
 MODEL_LOCK = asyncio.Semaphore(1)
@@ -153,7 +156,9 @@ def _transcribe_source(source: str) -> str:
         if text:
             return text
     except Exception as e:
-        print(f"[cosyvoice] Transcription failed ({e}), falling back to demo text")
+        log.warning(
+            "[cosyvoice] transcription failed (%s), falling back to demo text", e
+        )
     return "Welcome to the demo."
 
 

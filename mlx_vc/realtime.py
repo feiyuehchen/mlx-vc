@@ -8,12 +8,15 @@ The underlying ToneColorConverter is loaded once at module-level singleton
 (via `get_session()`) so subsequent uses are instant.
 """
 
+import logging
 import os
 import sys
 import threading
 from typing import Optional
 
 import numpy as np
+
+log = logging.getLogger(__name__)
 
 # Module-level singleton + lock
 _SESSION_LOCK = threading.Lock()

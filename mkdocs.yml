@@ -1,7 +1,6 @@
-# MkDocs 設定：build 後會生成一個靜態網站，
-# 使用者可以在瀏覽器看到完整文件。
-# 本地預覽：mkdocs serve
-# 部署：mkdocs gh-deploy
+# MkDocs configuration. Builds a static site under ./site/.
+# Local preview:  mkdocs serve
+# GitHub Pages :  mkdocs gh-deploy
 site_name: mlx-vc
 site_description: Voice conversion on Apple Silicon using MLX
 site_url: https://feiyuehchen.github.io/mlx-vc/
@@ -12,12 +11,58 @@ theme:
   name: material
   features:
     - content.code.copy
+    - content.code.annotate
     - navigation.sections
     - navigation.expand
+    - navigation.top
+    - navigation.tabs
     - search.suggest
+    - search.highlight
+    - toc.follow
   palette:
-    - scheme: default
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
       primary: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+# Bilingual: English (default) + Traditional Chinese.
+# Pages live under docs/en/ and docs/zh/ with parallel structure.
+plugins:
+  - search
+  - i18n:
+      docs_structure: folder
+      languages:
+        - locale: en
+          default: true
+          name: English
+          build: true
+        - locale: zh
+          name: 繁體中文
+          build: true
+          nav_translations:
+            Home: 首頁
+            Getting Started: 開始使用
+            Installation: 安裝
+            Quick Start: 快速入門
+            Models: 模型
+            Overview: 總覽
+            Full Comparison: 完整比較表
+            Guides: 教學
+            Real-time Demo: 即時轉換 Demo
+            Discord Integration: Discord 整合
+            Server API: Server API
+            Evaluation Metrics: 評估指標
+            Contributing: 貢獻
+            Development Setup: 開發環境
+            Adding a Model: 新增模型
 
 nav:
   - Home: index.md
@@ -37,6 +82,7 @@ nav:
       - Real-time Demo: guides/realtime.md
       - Discord Integration: guides/discord.md
       - Server API: guides/server.md
+      - Evaluation Metrics: guides/evaluation.md
   - Contributing:
       - Development Setup: contributing/dev-setup.md
       - Adding a Model: contributing/adding-a-model.md
@@ -44,6 +90,17 @@ nav:
 markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
   - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.details
   - admonition
   - tables
+  - attr_list
+  - md_in_html
+  - footnotes
+  - toc:
+      permalink: true
