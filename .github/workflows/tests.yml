@@ -37,7 +37,7 @@ jobs:
           python-version: "3.10"
 
       - name: Install package
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[dev,server]"
 
       - name: Run import and unit tests
         run: pytest -s mlx_vc/tests/ -v --timeout=60

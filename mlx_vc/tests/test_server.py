@@ -2,9 +2,14 @@
 
 import io
 
-from fastapi.testclient import TestClient
+import pytest
 
-from mlx_vc.server import app
+# Skip the entire module if the [server] extras aren't installed.
+pytest.importorskip("fastapi", reason="install with `pip install -e .[server]`")
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from mlx_vc.server import app  # noqa: E402
 
 client = TestClient(app)
 

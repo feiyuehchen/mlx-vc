@@ -5,7 +5,9 @@ import tempfile
 
 import pytest
 
-from mlx_vc.server import MLX_VC_REF_DIR, _resolve_reference
+pytest.importorskip("fastapi", reason="install with `pip install -e .[server]`")
+
+from mlx_vc.server import MLX_VC_REF_DIR, _resolve_reference  # noqa: E402
 
 
 def test_absolute_path_returned_as_is():
