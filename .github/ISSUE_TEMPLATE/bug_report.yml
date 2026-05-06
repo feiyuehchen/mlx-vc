@@ -1,0 +1,61 @@
+name: Bug report
+description: Something is broken
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug.  Please fill in as much as you
+        can — the more context, the faster the fix.
+
+  - type: input
+    id: backend
+    attributes:
+      label: Affected backend
+      description: Which model is affected? (`seed-vc`, `openvoice`, `knn-vc`, `meanvc`, `freevc`, `freevc-s`, `speecht5`, `rvc`, `cosyvoice`, `pocket-tts`, or "the server itself")
+      placeholder: seed-vc
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, including the full traceback if any.
+      placeholder: |
+        I called run_backend("seed-vc", ...) and got:
+
+        Traceback (most recent call last):
+          ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Minimal command / code that reproduces the issue
+      render: bash
+    validations:
+      required: true
+
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: |
+        Output of:
+        ```
+        python -V
+        pip show torch torchaudio mlx | head
+        sw_vers
+        ```
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Logs, screenshots, related issues, etc.

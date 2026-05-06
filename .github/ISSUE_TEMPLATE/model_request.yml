@@ -1,0 +1,53 @@
+name: New VC model integration
+description: Request integration of a specific zero-shot VC or voice-cloning model
+labels: ["enhancement", "model-request"]
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Model name
+      placeholder: HierSpeech++
+    validations:
+      required: true
+
+  - type: input
+    id: paper
+    attributes:
+      label: Paper / project URL
+      placeholder: https://arxiv.org/abs/2311.12454
+
+  - type: input
+    id: weights
+    attributes:
+      label: Pre-trained weights URL
+      description: HuggingFace Hub preferred.  Note if weights are only on Google Drive / OneDrive.
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type
+      options:
+        - True audio→audio VC
+        - TTS-clone (text path)
+        - Singing VC
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: deps
+    attributes:
+      label: Dependencies / setup
+      description: |
+        - Python version constraint?
+        - PyTorch version constraint?
+        - Special deps (fairseq, s3prl, custom CUDA kernels)?
+        - Does it work on CPU / MPS / requires CUDA?
+
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Why this model?
+      description: What does it bring vs the 9 already integrated?  Different architecture family?  Better quality?  English specifically?
+    validations:
+      required: true

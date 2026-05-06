@@ -1,5 +1,11 @@
 # mlx-vc
 
+[![Tests](https://github.com/feiyuehchen/mlx-vc/actions/workflows/tests.yml/badge.svg)](https://github.com/feiyuehchen/mlx-vc/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-MPS-orange.svg)](https://developer.apple.com/metal/pytorch/)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
 Voice conversion library for Apple Silicon. A unified subprocess-isolated runner for ten zero-shot VC and voice-cloning models, with MPS-accelerated inference where the model permits.
 
 ## What's included

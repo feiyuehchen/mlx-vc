@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question / discussion
+    url: https://github.com/feiyuehchen/mlx-vc/discussions
+    about: For general questions, please open a Discussion instead of an Issue.
+  - name: Security disclosure
+    url: https://github.com/feiyuehchen/mlx-vc/security/advisories/new
+    about: Reporting a security vulnerability — DO NOT file a public issue.
