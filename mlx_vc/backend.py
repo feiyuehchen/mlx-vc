@@ -55,6 +55,31 @@ BACKENDS = {
         "sample_rate": 48000,
         "description": "RVC via Acelogic MLX (requires pre-converted .npz model)",
     },
+    "freevc": {
+        "script": "freevc_infer.py",
+        "sample_rate": 16000,
+        "description": "FreeVC one-shot VC (WavLM + VITS decoder, MIT)",
+    },
+    "freevc-s": {
+        "script": "freevc_infer.py",
+        "sample_rate": 16000,
+        "description": "FreeVC-s variant (no speaker encoder, uses mel-spec of target)",
+        "extra_args": {"variant": "freevc-s"},
+    },
+    "pocket-tts": {
+        "script": "tts_clone_infer.py",
+        "sample_rate": 24000,
+        "description": "Kyutai Pocket-TTS (~235MB) English voice-cloning TTS via mlx-audio (NOTE: TTS-clone path, not true audio→audio VC)",
+        "extra_args": {
+            "hf_model": "mlx-community/Pocket-TTS",
+            "max_ref_seconds": 10.0,
+        },
+    },
+    "speecht5": {
+        "script": "speecht5_infer.py",
+        "sample_rate": 16000,
+        "description": "Microsoft SpeechT5 VC — transformer seq2seq audio→audio VC (English, VCTK/CMU-ARCTIC trained)",
+    },
 }
 
 
@@ -96,12 +121,16 @@ def run_backend(
         cleanup = True
 
     try:
-        args_json = json.dumps({
+        # Merge in backend-registered extra_args (e.g. variant selection)
+        # before user kwargs so users can still override.
+        call_args = {
             "source": os.path.abspath(source),
             "reference": os.path.abspath(reference),
             "output": os.path.abspath(output),
+            **info.get("extra_args", {}),
             **kwargs,
-        })
+        }
+        args_json = json.dumps(call_args)
 
         if verbose:
             print(f"[{backend}] Running inference...")

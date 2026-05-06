@@ -92,22 +92,37 @@ class CosyVoiceVC:
         if isinstance(ref_audio, np.ndarray):
             ref_audio = mx.array(ref_audio)
 
-        # Collect all audio chunks
-        chunks = []
-        for result in self.model.generate(
-            text=text,
-            ref_audio=ref_audio,
-            exaggeration=exaggeration,
-            cfg_weight=cfg_weight,
-            temperature=temperature,
-            speed=speed,
-            lang_code=lang_code,
-            verbose=self.verbose,
+        # Collect all audio chunks.
+        # mlx-audio TTS models have heterogeneous generate() signatures
+        # (Chatterbox takes exaggeration/cfg_weight; Sesame takes ref_text;
+        # OuteTTS is different again). Inspect the signature and only pass
+        # kwargs the target model accepts.
+        import inspect
+
+        candidate = {
+            "text": text,
+            "ref_audio": ref_audio,
+            "exaggeration": exaggeration,
+            "cfg_weight": cfg_weight,
+            "temperature": temperature,
+            "speed": speed,
+            "lang_code": lang_code,
+            "verbose": self.verbose,
             **kwargs,
-        ):
+        }
+        sig = inspect.signature(self.model.generate)
+        accepts_varkw = any(
+            p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
+        )
+        if accepts_varkw:
+            accepted = candidate
+        else:
+            accepted = {k: v for k, v in candidate.items() if k in sig.parameters}
+
+        chunks = []
+        for result in self.model.generate(**accepted):
             audio = result.audio
             if hasattr(audio, "tolist"):
-                # Convert mlx array to numpy
                 audio = np.array(audio, dtype=np.float32)
             chunks.append(audio.flatten())
 

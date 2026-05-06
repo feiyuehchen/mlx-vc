@@ -98,7 +98,12 @@ class OpenVoiceSession:
         self._loaded = True
 
     def set_reference(self, ref_path: str) -> None:
-        """Pre-extract target speaker embedding from a reference WAV file."""
+        """Pre-extract target speaker embedding from a reference WAV file.
+
+        Mirrors OpenVoice's official se_extractor.get_se(): splits the
+        reference into ~10s chunks, drops silent ones, averages embeddings.
+        Much more robust than a single large segment for noisy/long refs.
+        """
         if not self._loaded:
             self.load()
 
@@ -109,11 +114,28 @@ class OpenVoiceSession:
         import torch
 
         ref_audio, _ = librosa.load(ref_path, sr=self.sr)
-        ref_tensor = torch.FloatTensor(ref_audio).to(self.device)
-        ref_len = len(ref_audio)
+
+        # Split into ~10s chunks, filter low-energy
+        target_len = int(10.0 * self.sr)
+        if len(ref_audio) <= target_len:
+            chunks = [ref_audio]
+        else:
+            n = max(1, len(ref_audio) // target_len)
+            step = len(ref_audio) // n
+            chunks = []
+            for i in range(n):
+                c = ref_audio[i * step:(i + 1) * step]
+                rms = float(np.sqrt(np.mean(c ** 2)))
+                if rms >= 0.008:
+                    chunks.append(c)
+            if not chunks:
+                chunks = [ref_audio]  # fallback
+
+        tensors = [torch.FloatTensor(c).to(self.device) for c in chunks]
+        lens = [int(c.shape[0]) for c in chunks]
 
         with torch.no_grad():
-            self.tgt_se = self.converter.extract_se([ref_tensor], [ref_len])
+            self.tgt_se = self.converter.extract_se(tensors, lens)
         self.reference_path = ref_path
 
     def convert_chunk(

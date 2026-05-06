@@ -18,17 +18,17 @@ Every model follows the same pattern: `convert(source_audio, ref_audio) -> numpy
 # Seed-VC (zero-shot, best quality)
 from mlx_vc.models.seed_vc import SeedVC
 vc = SeedVC(diffusion_steps=25)
-audio = vc.convert("my_voice.wav", "professor.wav")
+audio = vc.convert("my_voice.wav", "target_speaker.wav")
 
 # OpenVoice V2 (fastest)
 from mlx_vc.models.openvoice import OpenVoiceVC
 vc = OpenVoiceVC()
-audio = vc.convert("my_voice.wav", "professor.wav")
+audio = vc.convert("my_voice.wav", "target_speaker.wav")
 
 # kNN-VC (non-parametric, no neural vocoder training)
 from mlx_vc.models.knn_vc import KnnVC
 vc = KnnVC(topk=4)
-audio = vc.convert("my_voice.wav", "professor.wav")
+audio = vc.convert("my_voice.wav", "target_speaker.wav")
 ```
 
 ## Save Output
@@ -41,7 +41,7 @@ save_audio("output.wav", audio, sample_rate=vc.sample_rate)
 ## Real-time Demo
 
 ```bash
-python -m mlx_vc.demo.realtime_vc --reference professor.wav
+python -m mlx_vc.demo.realtime_vc --reference target_speaker.wav
 ```
 
 Speak into the microphone — converted audio plays through your headphones.

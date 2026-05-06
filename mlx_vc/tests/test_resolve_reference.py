@@ -25,10 +25,17 @@ def test_absolute_path_nonexistent_returns_none():
 
 def test_filename_resolved_under_ref_dir():
     """A bare filename should be looked up under MLX_VC_REF_DIR."""
-    # Use a known file from the demo data dir
-    expected = os.path.join(MLX_VC_REF_DIR, "professor_ref.wav")
-    if os.path.exists(expected):
-        assert _resolve_reference("professor_ref.wav") == expected
+    if not MLX_VC_REF_DIR or not os.path.isdir(MLX_VC_REF_DIR):
+        pytest.skip("MLX_VC_REF_DIR not set or missing")
+    # Stage a temp WAV inside MLX_VC_REF_DIR, resolve by bare filename.
+    fname = "_test_resolve_reference.wav"
+    path = os.path.join(MLX_VC_REF_DIR, fname)
+    with open(path, "wb") as f:
+        f.write(b"RIFF")
+    try:
+        assert _resolve_reference(fname) == path
+    finally:
+        os.unlink(path)
 
 
 def test_unknown_filename_returns_none():

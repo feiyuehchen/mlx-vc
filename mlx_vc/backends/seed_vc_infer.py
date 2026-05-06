@@ -49,10 +49,15 @@ def main():
     source = args["source"]
     reference = args["reference"]
     output = args["output"]
-    diffusion_steps = args.get("diffusion_steps", 30)
+    # Upstream default is 10 (fast), recommended 50-100 for best quality.
+    # 50 is the "best-quality" sweet spot from the upstream demo examples.
+    diffusion_steps = args.get("diffusion_steps", 50)
     cfg_rate = args.get("inference_cfg_rate", 0.7)
     length_adjust = args.get("length_adjust", 1.0)
     f0_condition = args.get("f0_condition", False)
+    # Upstream default enables fp16 autocast on the CFM step.
+    # MPS supports fp16 well for Seed-VC per upstream testing.
+    fp16 = args.get("fp16", True)
 
     sr = 22050 if not f0_condition else 44100
 
@@ -80,7 +85,7 @@ def main():
         checkpoint=None,
         config=None,
         f0_condition=f0_condition,
-        fp16=False,
+        fp16=fp16,
     )
 
     from inference import load_models, crossfade
@@ -164,7 +169,10 @@ def main():
         is_last = processed_frames + max_source_window >= cond.size(1)
         cat_condition = torch.cat([prompt_condition, chunk_cond], dim=1)
 
-        with torch.no_grad():
+        with torch.inference_mode(), torch.autocast(
+            device_type=device.type,
+            dtype=torch.float16 if fp16 else torch.float32,
+        ):
             vc_target = model.cfm.inference(
                 cat_condition,
                 torch.LongTensor([cat_condition.size(1)]).to(device),
@@ -172,7 +180,12 @@ def main():
                 inference_cfg_rate=cfg_rate,
             )
             vc_target = vc_target[:, :, ref_mel.size(-1):]
-            vc_wave = vocoder_fn(vc_target.float()).squeeze()[None, :]
+            # Vocoder must be inside inference_mode too — otherwise passing
+            # the inference-mode tensor into vocoder's autograd-tracked
+            # convs raises "Inference tensors cannot be saved for backward".
+            # Force output to fp32 (autocast may have left it as fp16, which
+            # soundfile can't write).
+            vc_wave = vocoder_fn(vc_target.float()).float().squeeze()[None, :]
 
         if processed_frames == 0:
             if is_last:

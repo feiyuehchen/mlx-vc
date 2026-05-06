@@ -23,8 +23,8 @@ class MeanVC:
 
     def __init__(
         self,
-        steps: int = 1,
-        chunk_size: int = 40,
+        steps: int = 4,
+        chunk_size: int = 20,
         verbose: bool = True,
     ):
         self.steps = steps
@@ -44,7 +44,7 @@ class MeanVC:
         Args:
             source_audio: Path or numpy array of source speech
             ref_audio: Path or numpy array of reference speaker
-            steps: Override default inference steps (1=fastest, 2=better)
+            steps: Override default inference steps (higher is typically cleaner)
 
         Returns:
             Converted audio as numpy array at 16kHz

@@ -81,16 +81,47 @@ def main():
     ref_audio, _ = librosa.load(reference, sr=sr)
 
     src_tensor = torch.FloatTensor(src_audio).unsqueeze(0).to(device)
-    ref_tensor = torch.FloatTensor(ref_audio).unsqueeze(0).to(device)
-
     src_lengths = torch.LongTensor([src_tensor.size(1)]).to(device)
-    ref_lengths = torch.LongTensor([ref_tensor.size(1)]).to(device)
 
-    # Extract speaker embeddings
+    # Extract speaker embedding — split reference into 8–12s chunks,
+    # drop low-energy (silent/noise) ones, then feed all clean chunks into
+    # extract_se which averages their embeddings.  This mirrors the official
+    # se_extractor.get_se() pipeline and is dramatically more robust than a
+    # single large segment when the reference has dead air or noise.
     print("Extracting speaker embeddings...")
+
+    def _segment_and_filter(audio_np: np.ndarray, target_len_s: float = 10.0,
+                             min_rms: float = 0.008):
+        """Chunk audio into ~target_len_s windows, drop low-energy chunks."""
+        chunk_samples = int(target_len_s * sr)
+        if len(audio_np) <= chunk_samples:
+            return [audio_np]
+        n = max(1, len(audio_np) // chunk_samples)
+        step = len(audio_np) // n
+        chunks = []
+        for i in range(n):
+            chunk = audio_np[i * step:(i + 1) * step]
+            rms = float(np.sqrt(np.mean(chunk ** 2)))
+            if rms >= min_rms:
+                chunks.append(chunk)
+        return chunks or [audio_np]  # fall back to full if filter killed everything
+
+    ref_chunks = _segment_and_filter(ref_audio)
+    ref_tensors = [torch.FloatTensor(c).to(device) for c in ref_chunks]
+    ref_lens = [int(c.shape[0]) for c in ref_chunks]
+    print(f"  Reference split into {len(ref_chunks)} clean segments")
+
     with torch.no_grad():
         src_se = converter.extract_se([src_tensor.squeeze(0)], [src_lengths.item()])
-        tgt_se = converter.extract_se([ref_tensor.squeeze(0)], [ref_lengths.item()])
+        tgt_se = converter.extract_se(ref_tensors, ref_lens)
+
+    # seed-vc-ref's extract_se returns a [N, D] stack without averaging.
+    # Official OpenVoice behavior is to mean-pool across segments.
+    if tgt_se.dim() >= 2 and tgt_se.size(0) > 1:
+        tgt_se = tgt_se.mean(dim=0, keepdim=True).squeeze(0).unsqueeze(0) \
+            if tgt_se.dim() == 2 else tgt_se.mean(dim=0, keepdim=True)
+    if tgt_se.dim() == 1:
+        tgt_se = tgt_se.unsqueeze(0)
 
     # Convert
     print(f"Converting (tau={tau})...")

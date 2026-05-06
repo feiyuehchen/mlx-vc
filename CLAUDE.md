@@ -73,13 +73,41 @@ lets models with conflicting deps coexist in one package.
 
 ## Supported Models
 
-| Model | Type | Backend | Notes |
-|-------|------|---------|-------|
-| CosyVoice3/Chatterbox | TTS + voice cloning | In-process (mlx-audio) | Text input only |
-| Seed-VC | Zero-shot VC | Subprocess (PyTorch MPS) | True audio-to-audio VC |
-| Seed-VC SVC | Singing VC | Subprocess (PyTorch MPS) | F0-conditioned, 44kHz |
-| OpenVoice V2 | Tone color conversion | Subprocess (PyTorch) | Very fast, multilingual |
-| RVC | Per-speaker VC | Subprocess | Needs fine-tuned model |
+True audio→audio VC:
+
+| Model       | Backend             | Device         | Notes                                       |
+|-------------|---------------------|----------------|---------------------------------------------|
+| Seed-VC     | Subprocess          | MPS + fp16     | Diffusion DiT + BigVGAN. Best quality.      |
+| OpenVoice V2| Subprocess          | MPS            | Tone-color converter, fast.                 |
+| kNN-VC      | Subprocess          | CPU            | Forced CPU: upstream uses np.float64 (MPS rejects), HiFi-GAN device sync issues. |
+| FreeVC / -s | Subprocess          | MPS            | VITS + WavLM. Speaker encoder runs on MPS now (torch 2.11). |
+| MeanVC      | Subprocess          | CPU            | TorchScript Vocos / ASR hit MPS graph fuser bug. Set `MEANVC_DEVICE=mps` to override. |
+| SpeechT5-VC | Subprocess          | MPS            | Microsoft transformer seq2seq. CMU-ARCTIC-trained — collapses on natural speech. |
+| RVC         | Subprocess (own venv) | MLX (Acelogic) | Speaker baked into .npz. rvc-mlx-ref/.venv pinned to py3.10 + numpy<2. |
+
+TTS-clone (text path, NOT true VC):
+
+| Model       | Backend             | Device         | Notes                                       |
+|-------------|---------------------|----------------|---------------------------------------------|
+| Chatterbox  | In-process (mlx-audio) | MPS         | Whisper-transcribe source → resynth.        |
+| Pocket-TTS  | Subprocess          | MPS            | 235MB Kyutai voice-cloning TTS via mlx-audio. |
+
+## Torch / MPS audit (torch 2.11)
+
+We periodically run `mlx_vc/tests/test_mps_ops.py` to confirm what works
+on MPS in the current torch.  As of torch 2.11 these ALL pass:
+complex64 STFT/ISTFT, Conv1dTranspose (HiFi-GAN), fp16 autocast, linalg.svd
+(via CPU fallback), cdist+topk (kNN core), torchaudio resample,
+transformers WavLM forward, scaled_dot_product_attention, freshly-traced
+torch.jit modules.
+
+Still failing on MPS:
+- **Pre-saved TorchScript .pt graph fuser** — Vocos in MeanVC, ASR in MeanVC.
+  "NotImplementedError: Unknown device for graph fuser". Force CPU.
+- **float64 inputs** — MPS rejects float64 entirely. Bites us when upstream
+  code does `torch.tensor(np.float64_array, device='mps')` (kNN-VC SPEAKER_INFORMATION_WEIGHTS).
+- **Cross-device modules** — bshall/knn-vc loads HiFi-GAN on CPU regardless
+  of device arg, then conv1d hits "MPSFloat vs torch.Float" mismatch.
 
 ## Real-time Demo
 

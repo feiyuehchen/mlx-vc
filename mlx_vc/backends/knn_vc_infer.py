@@ -24,19 +24,28 @@ def main():
     output = args["output"]
     topk = args.get("topk", 4)
     prematched = args.get("prematched", True)
+    # Optional list of additional reference files — concatenated into the
+    # kNN matching pool for denser target-speaker coverage.  kNN-VC quality
+    # scales directly with pool size; ideally ≥ 3 min of clean reference.
+    extra_refs = args.get("extra_references", [])
 
     import torch
 
-    if torch.backends.mps.is_available():
+    # bshall/knn-vc upstream code:
+    #   - `torch.tensor(np.float64_array, device=device)` fails on MPS
+    #     (MPS rejects float64).
+    #   - Internal HiFi-GAN vocoder isn't moved to the device passed in,
+    #     so even after fixing the float64 issue, conv1d hits a
+    #     "MPSFloatType vs torch.FloatTensor" device-mismatch error.
+    # CPU is faster to set up and the WavLM forward+kNN+vocoder is fast
+    # enough on CPU for our 10s-source benchmark. Set KNN_VC_DEVICE=mps
+    # to override and patch upstream if motivated.
+    forced = os.environ.get("KNN_VC_DEVICE", "cpu").strip().lower()
+    if forced == "mps" and torch.backends.mps.is_available():
         device = torch.device("mps")
-    elif torch.cuda.is_available():
+    elif forced == "cuda" and torch.cuda.is_available():
         device = torch.device("cuda")
     else:
-        device = torch.device("cpu")
-
-    # kNN-VC on MPS can have issues with some ops, fallback to CPU
-    if device.type == "mps":
-        print("Note: kNN-VC on MPS may have issues, using CPU for stability")
         device = torch.device("cpu")
 
     print(f"Loading kNN-VC (device={device})...")
@@ -65,8 +74,10 @@ def main():
     t0 = time.time()
     query_seq = knn_vc.get_features(source)
 
-    print("Building reference matching set...")
-    matching_set = knn_vc.get_matching_set([reference])
+    all_refs = [reference] + list(extra_refs)
+    print(f"Building reference matching set from {len(all_refs)} file(s)...")
+    matching_set = knn_vc.get_matching_set(all_refs)
+    print(f"Matching pool: {matching_set.shape}")
 
     print(f"Matching (topk={topk})...")
     out_wav = knn_vc.match(query_seq, matching_set, topk=topk)

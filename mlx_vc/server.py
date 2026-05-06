@@ -13,6 +13,7 @@ import argparse
 import asyncio
 import io
 import os
+import socket
 import struct
 import tempfile
 import time
@@ -48,6 +49,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _pick_available_port(host: str, preferred_port: int, max_tries: int = 200) -> int:
+    """Pick the first available port starting from preferred_port."""
+    for port in range(preferred_port, preferred_port + max_tries):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                s.bind((host, port))
+                return port
+            except OSError:
+                continue
+    raise RuntimeError(
+        f"No available port found in range {preferred_port}-{preferred_port + max_tries - 1}"
+    )
 
 
 @app.get("/", include_in_schema=False)
@@ -155,7 +171,7 @@ def _save_upload(upload: UploadFile, prefix: str, dest_dir: str = None) -> str:
 async def convert_batch(
     source: UploadFile = File(...),
     reference: UploadFile = File(...),
-    models: str = Form("openvoice,seed-vc,knn-vc,cosyvoice"),
+    models: str = Form("openvoice,seed-vc,knn-vc,cosyvoice,sesame,outetts,dia,meanvc,freevc,freevc-s,rvc"),
     text: Optional[str] = Form(None),
 ):
     """Run multiple VC models on the same source/reference, in the background.
@@ -163,7 +179,8 @@ async def convert_batch(
     Returns a job_id that can be polled via /v1/jobs/{job_id}.
     """
     requested = [m.strip() for m in models.split(",") if m.strip()]
-    valid_models = set(BACKENDS.keys()) | {"cosyvoice"}
+    from mlx_vc.jobs import _TTS_CLONE_MODELS
+    valid_models = set(BACKENDS.keys()) | set(_TTS_CLONE_MODELS.keys())
     invalid = [m for m in requested if m not in valid_models]
     if invalid:
         raise HTTPException(
@@ -257,10 +274,9 @@ async def get_job_result(job_id: str, model: str):
 # ============================================================================
 
 # Reference audio resolution: search this dir for filenames sent by clients.
-# Set MLX_VC_REF_DIR to override.
-MLX_VC_REF_DIR = os.environ.get(
-    "MLX_VC_REF_DIR", "/Users/fychen/research/ADP/data/ece472course"
-)
+# Set MLX_VC_REF_DIR to override.  No default — clients must use absolute
+# paths or upload via /v1/audio/upload-reference if MLX_VC_REF_DIR is unset.
+MLX_VC_REF_DIR = os.environ.get("MLX_VC_REF_DIR")
 
 
 # Uploaded references (live for the server's lifetime, cleaned on shutdown)
@@ -283,7 +299,8 @@ def _resolve_reference(ref: str) -> Optional[str]:
     # Bare filename — block path traversal then look up under known dirs
     if "/" in ref or ".." in ref:
         return None
-    for d in (MLX_VC_REF_DIR, UPLOAD_REF_DIR):
+    search_dirs = [d for d in (MLX_VC_REF_DIR, UPLOAD_REF_DIR) if d]
+    for d in search_dirs:
         candidate = os.path.join(d, ref)
         if os.path.exists(candidate):
             return candidate
@@ -325,8 +342,8 @@ async def ws_realtime(websocket: WebSocket):
       S->C binary: Float32 PCM (converted, at OpenVoice 22050Hz)
       C->S text: {"type":"stop"}
 
-    Bare filenames are resolved under MLX_VC_REF_DIR (default
-    /Users/fychen/research/ADP/data/ece472course).
+    Bare filenames are resolved under MLX_VC_REF_DIR (must be set; no default).
+    Absolute paths bypass MLX_VC_REF_DIR.
     """
     await websocket.accept()
 
@@ -438,17 +455,29 @@ def main():
     parser = argparse.ArgumentParser(description="mlx-vc API server")
     parser.add_argument("--host", default="127.0.0.1", help="Bind host")
     parser.add_argument("--port", type=int, default=8000, help="Bind port")
+    parser.add_argument(
+        "--max-port-tries",
+        type=int,
+        default=200,
+        help="How many ports to try when the preferred port is busy",
+    )
     parser.add_argument("--reload", action="store_true", help="Auto-reload on changes")
     args = parser.parse_args()
 
-    print(f"Starting mlx-vc server at http://{args.host}:{args.port}")
-    print(f"API docs: http://{args.host}:{args.port}/docs")
+    selected_port = _pick_available_port(args.host, args.port, args.max_port_tries)
+    if selected_port != args.port:
+        print(
+            f"Port {args.port} is busy, automatically switched to {selected_port}"
+        )
+
+    print(f"Starting mlx-vc server at http://{args.host}:{selected_port}")
+    print(f"API docs: http://{args.host}:{selected_port}/docs")
     print(f"Models: {list(AVAILABLE_MODELS.keys())}")
 
     uvicorn.run(
         "mlx_vc.server:app",
         host=args.host,
-        port=args.port,
+        port=selected_port,
         reload=args.reload,
     )
 

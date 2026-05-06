@@ -17,8 +17,8 @@ Required setup:
   python tools/convert_rvc_model.py generator path/to/voice.pth out.npz
 
 The "reference" parameter is IGNORED — RVC uses a per-speaker fine-tuned
-model (provided via ECE433_RVC_MODEL_PATH or args["model_path"]). The
-reference voice is baked INTO the model.
+model (provided via $RVC_MODEL_PATH or args["model_path"]). The reference
+voice is baked INTO the model.
 """
 
 import argparse
@@ -39,17 +39,18 @@ def main():
     pitch = args.get("pitch", 0)
     f0_method = args.get("f0_method", "rmvpe")
 
-    # The model path: explicit arg > env var > default
+    # Model path: explicit arg > env var.  RVC has no sensible default —
+    # the model is per-speaker fine-tuned, caller must provide one.
     model_path = (
         args.get("model_path")
-        or os.environ.get("ECE433_RVC_MODEL_PATH")
-        or "/Users/fychen/research/ADP/data/ece472course/zundamon_rvc.npz"
+        or os.environ.get("RVC_MODEL_PATH")
     )
 
-    if not os.path.exists(model_path):
+    if not model_path or not os.path.exists(model_path):
         print(
-            f"ERROR: RVC model not found: {model_path}\n"
-            f"Set ECE433_RVC_MODEL_PATH or pass model_path in args.",
+            f"ERROR: RVC model not found: {model_path!r}\n"
+            f"Pass `model_path` in args or set RVC_MODEL_PATH env var.\n"
+            f"Convert a .pth model with rvc-mlx-ref/tools/convert_rvc_model.py.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -105,6 +106,24 @@ def main():
     if not os.path.exists(output):
         print(f"ERROR: RVC didn't produce output {output}", file=sys.stderr)
         sys.exit(1)
+
+    # Acelogic's rvc-mlx output is often very quiet (peak ~0.2).  Peak-
+    # normalize so downstream metrics and listeners don't mistake volume
+    # for quality.
+    try:
+        import librosa
+        import numpy as np
+        import soundfile as sf
+
+        wav, sr_out = librosa.load(output, sr=None, mono=True)
+        peak = float(np.max(np.abs(wav))) if wav.size else 0.0
+        if 0.0 < peak < 0.7:
+            wav = wav * (0.95 / peak)
+            sf.write(output, wav, sr_out)
+            print(f"Peak-normalized (was {peak:.3f}, now 0.95)")
+    except Exception as e:
+        print(f"Warning: peak normalization failed: {e}", file=sys.stderr)
+
     print(f"Saved to {output}")
 
 

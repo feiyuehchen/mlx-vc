@@ -20,8 +20,12 @@ from pathlib import Path
 import requests
 
 
-SOURCE = "/Users/fychen/research/ADP/data/ece472course/professor_src_10s.wav"
-REFERENCE = "/Users/fychen/research/ADP/data/ece472course/professor_ref.wav"
+import os
+
+# Override via MLX_VC_BENCH_SOURCE / MLX_VC_BENCH_REFERENCE env vars,
+# or pass --source / --reference on the CLI.
+SOURCE = os.environ.get("MLX_VC_BENCH_SOURCE", "tests/data/source.wav")
+REFERENCE = os.environ.get("MLX_VC_BENCH_REFERENCE", "tests/data/reference.wav")
 
 
 def fmt_ms(s: float) -> str:
@@ -142,7 +146,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--server-port", type=int, default=8000)
     parser.add_argument("--skip-server", action="store_true")
+    parser.add_argument("--source", default=SOURCE,
+                        help="Source audio file (default from $MLX_VC_BENCH_SOURCE)")
+    parser.add_argument("--reference", default=REFERENCE,
+                        help="Reference audio file (default from $MLX_VC_BENCH_REFERENCE)")
     args = parser.parse_args()
+    global SOURCE, REFERENCE
+    SOURCE = args.source
+    REFERENCE = args.reference
 
     print("=" * 50)
     print("mlx-vc speed benchmark")
