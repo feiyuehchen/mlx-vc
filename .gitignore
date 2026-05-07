@@ -33,3 +33,6 @@ checkpoints/
 
 # MkDocs build output
 site/
+
+# Local notes / paper drafts (never commit)
+_private/
