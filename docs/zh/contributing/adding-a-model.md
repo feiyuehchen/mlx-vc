@@ -1,12 +1,8 @@
-# Adding a New Model
+# 新增模型
 
-> 中文翻譯尚未補完，請參考 [English version](https://feiyuehchen.github.io/mlx-vc/en/contributing/adding-a-model.md).
-> Translation pending — see the English version for now.
+## Step 1: 建立 Model Wrapper
 
-
-## Step 1: Create Model Wrapper
-
-Create `mlx_vc/models/<name>/__init__.py` and `model.py`:
+建立 `mlx_vc/models/<name>/__init__.py` 和 `model.py`：
 
 ```python
 # mlx_vc/models/my_model/model.py
@@ -18,7 +14,6 @@ class MyModelVC:
     def convert(self, source_audio, ref_audio, **kwargs):
         """Must return numpy array of converted audio."""
         from mlx_vc.backend import run_backend
-        # ... delegate to backend
         return run_backend("my-model", source=..., reference=...)
 
     @property
@@ -26,9 +21,9 @@ class MyModelVC:
         return {"name": "MyModel", "type": "zero-shot", "sr": self.sr}
 ```
 
-## Step 2: Create Backend Script
+## Step 2: 建立 Backend Script
 
-Create `mlx_vc/backends/my_model_infer.py`:
+建立 `mlx_vc/backends/my_model_infer.py`：
 
 ```python
 #!/usr/bin/env python3
@@ -49,9 +44,9 @@ if __name__ == "__main__":
     main()
 ```
 
-## Step 3: Register
+## Step 3: 註冊
 
-In `mlx_vc/backend.py` add to `BACKENDS`:
+在 `mlx_vc/backend.py` 的 `BACKENDS` 加入：
 ```python
 "my-model": {
     "script": "my_model_infer.py",
@@ -60,7 +55,7 @@ In `mlx_vc/backend.py` add to `BACKENDS`:
 },
 ```
 
-In `mlx_vc/generate.py` add to `AVAILABLE_MODELS`:
+在 `mlx_vc/generate.py` 的 `AVAILABLE_MODELS` 加入：
 ```python
 "my-model": {
     "class": "mlx_vc.models.my_model.MyModelVC",
@@ -69,13 +64,39 @@ In `mlx_vc/generate.py` add to `AVAILABLE_MODELS`:
 },
 ```
 
-## Step 4: Test
+## Step 4: 測試
 
-Add tests in `mlx_vc/tests/` and run:
+在 `mlx_vc/tests/` 加測試並執行：
 ```bash
 pytest -s mlx_vc/tests/ -v
 ```
 
-## Step 5: Document
+## Step 5: 評估
 
-Add `docs/models/my-model.md` and update `mkdocs.yml` nav.
+跑品質 benchmark 並把結果記錄到 `BENCHMARK.md` Part B：
+
+```bash
+# 產生輸出
+python -m mlx_vc.backend my-model --source src.wav --reference ref.wav --output out.wav
+
+# 評分
+python scripts/evaluate_quality.py \
+    --source src.wav --reference ref.wav --outputs out.wav --json metrics.json
+```
+
+在 `BENCHMARK.md` 對應表格新增一行，包含 code version（`git describe --tags`）和指標值。
+
+## Step 6: 文件
+
+新增 `docs/models/my-model.md` 並更新 `mkdocs.yml` nav。
+
+## Step 7: 版號與 Changelog
+
+新增模型 = **MINOR** bump。更新 `CHANGELOG.md` 的 `[Unreleased]`：
+
+```markdown
+### Added
+- **MyModel** backend: <一行描述> (BENCHMARK.md → v0.x.x Results)
+```
+
+Commit type 用 `feat`：`feat(models): add my-model backend`

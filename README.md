@@ -116,6 +116,8 @@ python scripts/evaluate_quality.py \
 
 For TTS-clone outputs, WER ≈ 0 is trivially achieved (text roundtrip).  Compare TTS-clone models among themselves — not against true VC.
 
+Metric definitions and accumulated results are tracked in [`BENCHMARK.md`](BENCHMARK.md).
+
 ## Reference audio preparation
 
 `scripts/prepare_reference.py` runs Demucs vocal separation and extracts two clean reference clips (60 s + 3 min):
@@ -200,6 +202,12 @@ Each backend's docstring lists the exact setup steps and HF / external download 
 ```bash
 pytest -s mlx_vc/tests/ -v
 ```
+
+## Versioning
+
+This project follows [Semantic Versioning](https://semver.org/) with [Conventional Commits](https://www.conventionalcommits.org/). Model quality metrics are tracked in [`BENCHMARK.md`](BENCHMARK.md) following a research-adapted evaluation protocol.
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for commit conventions and version bump rules.
 
 ## License
 

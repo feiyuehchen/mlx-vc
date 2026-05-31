@@ -9,7 +9,7 @@ git clone git@github.com:feiyuehchen/mlx-vc.git
 cd mlx-vc
 uv venv && source .venv/bin/activate
 uv pip install -e ".[all,dev]"
-pre-commit install
+pre-commit install --hook-type pre-commit --hook-type commit-msg
 ```
 
 Run the tests:
@@ -42,8 +42,52 @@ See `README.md` for a detailed architecture overview and `CLAUDE.md` for the dev
 2. **Make changes**: prefer editing existing files; add new ones only when necessary.
 3. **Run pre-commit**: `pre-commit run --all-files` (auto-runs on `git commit` once `pre-commit install` is done)
 4. **Run tests**: `pytest -s mlx_vc/tests/ -v --timeout=60`
-5. **Commit**: messages follow `<type>: <summary>` (`feat:`, `fix:`, `perf:`, `docs:`, `test:`, `style:`, `ci:`, `refactor:`)
+5. **Commit**: use [Conventional Commits](#commit-convention) (enforced by commitizen hook)
 6. **Open a PR**: fill in the PR template; CI must pass before review.
+
+## Commit convention
+
+We use [Conventional Commits](https://www.conventionalcommits.org/) enforced by a `commitizen` pre-commit hook.
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+| Type | Meaning | Version impact |
+|------|---------|----------------|
+| `feat` | New model, endpoint, CLI flag | MINOR |
+| `fix` | Bug fix | PATCH |
+| `perf` | Speed improvement (API unchanged) | PATCH |
+| `bench` | BENCHMARK.md Part B result update | no release |
+| `bench!` | BENCHMARK.md Part A metric change | MAJOR |
+| `docs` | Documentation only | no release |
+| `test` | Tests only | no release |
+| `refactor` | No functional change | no release |
+| `ci` | CI/CD changes | no release |
+| `chore` | Tooling, deps, etc. | no release |
+| `style` | Formatting (black/isort) | no release |
+
+Add `!` after the type (e.g. `feat!:`) for breaking changes. Breaking changes also require a `BREAKING CHANGE:` footer explaining migration.
+
+## Versioning (SemVer)
+
+This project follows [Semantic Versioning](https://semver.org/). We are currently in `0.x` (pre-stable).
+
+| Change | Bump |
+|--------|------|
+| New model backend, new API endpoint, new CLI flag | MINOR (`0.x+1.0`) |
+| Bug fix, refactor, docs, speed (API unchanged) | PATCH (`0.x.y+1`) |
+| Remove/rename public API, change BENCHMARK.md Part A metric | MAJOR (or MINOR with `!` in 0.x) |
+
+Public API = CLI flags, server endpoints, Python `convert()` / `run_backend()` signatures.
+
+When your PR adds a new model or changes behaviour, update:
+- `CHANGELOG.md` under `[Unreleased]`
+- `BENCHMARK.md` Part B (if you ran evaluate_quality.py)
 
 ## Code style
 

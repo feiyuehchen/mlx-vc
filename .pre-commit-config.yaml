@@ -11,3 +11,9 @@ repos:
     hooks:
       - id: isort
         args: [--profile=black]
+
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.4.1
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]

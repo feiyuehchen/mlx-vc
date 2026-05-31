@@ -6,12 +6,18 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting
 from v1.0.0.  Pre-1.0 releases may make breaking changes between minor
 versions.
 
+Model quality results are tracked separately in [BENCHMARK.md](./BENCHMARK.md).
+BENCHMARK.md Part A (metric definition) changes trigger MAJOR bumps.
+
 ## [Unreleased]
 
 ### Added
 - LICENSE, CONTRIBUTING, SECURITY, CHANGELOG, GitHub issue / PR templates,
   Dependabot configuration — full OSS metadata pass.
 - README badges (CI status, license, Python version, MPS support, code style).
+- BENCHMARK.md for tracking model quality metrics (UTMOS, SECS, WER).
+- Conventional Commits enforcement via commitizen pre-commit hook.
+- `.python-version` (3.10) for environment reproducibility.
 
 ## [0.1.0] — 2025-04-20
 
