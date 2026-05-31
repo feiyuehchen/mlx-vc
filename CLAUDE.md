@@ -6,6 +6,45 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 mlx-vc is a voice conversion library for Apple Silicon. It provides a unified API for multiple VC model backends. Models run via subprocess isolation to avoid dependency conflicts.
 
+## Versioning & Workflow
+
+This project follows **two complementary protocols** (see `~/research/semver-development-workflow.md` and `~/research/ai-research-code-workflow.md`):
+
+- **Library API** → SemVer workflow. Public API = CLI flags, server endpoints, Python `convert()` signatures.
+- **Model quality evaluation** → Research workflow BENCHMARK.md. Metric definitions in Part A; per-model results in Part B.
+
+### Version Rules (SemVer, currently 0.x)
+
+| Change | Bump |
+|--------|------|
+| New model backend, new API endpoint, new CLI flag | MINOR |
+| Bug fix, refactor, docs, speed improvement (API unchanged) | PATCH |
+| Remove/rename public API, change endpoint schema, change BENCHMARK.md Part A metric definition | MAJOR (or 0.x MINOR with `!`) |
+
+### Commit Convention (Conventional Commits)
+
+```
+feat:      new capability (model, endpoint, flag)  → MINOR
+fix:       bug fix                                  → PATCH
+perf:      speed improvement (no API change)        → PATCH
+bench:     BENCHMARK.md Part B result update        → no release
+bench!:    BENCHMARK.md Part A metric change        → MAJOR
+docs/test/chore/ci/style:                           → no release
+```
+
+### Tags
+
+- `v*` — release versions (`v0.1.0`, `v0.2.0`)
+- `paper/*` — publication milestones
+- `archived/*` — abandoned experiments
+
+### BENCHMARK.md Role
+
+`BENCHMARK.md` tracks objective quality (UTMOS, SECS, WER) across models and versions.
+- Part A metric definitions are fixed unless a `bench!` commit changes them.
+- Part B accumulates per-model results; new rows are added, never overwritten.
+- All numbers come from `scripts/evaluate_quality.py` with recorded git commit + audio pair.
+
 ## Build & Install
 
 ```bash
