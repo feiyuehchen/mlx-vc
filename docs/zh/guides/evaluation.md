@@ -146,6 +146,19 @@ TTS-clone 模型走 `source → Whisper → text → TTS → output`。然後 Wh
 - Whisper 對動漫聲 / pitch-shifted 聲不行（RVC Zundamon 即使 audio 沒問題 WER 仍然 1.0 — Whisper 純粹聽不懂）
 - 太小聲的 output（RVC normalization 前 peak ~0.2）會讓 Whisper 漏 frame
 
+## 記錄結果
+
+跑完 `evaluate_quality.py` 後，把結果加到 [`BENCHMARK.md`](../../../BENCHMARK.md) Part B。每行必須包含：
+
+- Code version（`git describe --tags`）
+- Source 和 reference audio 識別
+- 三個指標值
+- 使用的硬體
+
+新結果**追加**到表格 — 永遠不覆蓋既有結果。這樣才能追蹤跨版本品質變化。
+
+如果你修改了指標定義（Part A），那是 **MAJOR** version bump — 詳見 [CONTRIBUTING.md](../../../CONTRIBUTING.md)。
+
 ## 最新 scoreboard
 
 Source：10 秒英文 lecture clip。Reference：Demucs 分離過的 60 秒乾淨 clip。

@@ -72,6 +72,32 @@ Add tests in `mlx_vc/tests/` and run:
 pytest -s mlx_vc/tests/ -v
 ```
 
-## Step 5: Document
+## Step 5: Evaluate
+
+Run the quality benchmark and record results in `BENCHMARK.md` Part B:
+
+```bash
+# Generate output
+python -m mlx_vc.backend my-model --source src.wav --reference ref.wav --output out.wav
+
+# Score it
+python scripts/evaluate_quality.py \
+    --source src.wav --reference ref.wav --outputs out.wav --json metrics.json
+```
+
+Add a new row to the appropriate table in `BENCHMARK.md` with the code version (`git describe --tags`) and metric values.
+
+## Step 6: Document
 
 Add `docs/models/my-model.md` and update `mkdocs.yml` nav.
+
+## Step 7: Version & Changelog
+
+Adding a new model is a **MINOR** bump. Update `CHANGELOG.md` under `[Unreleased]`:
+
+```markdown
+### Added
+- **MyModel** backend: <one-line description> (BENCHMARK.md → v0.x.x Results)
+```
+
+Use commit type `feat`: `feat(models): add my-model backend`

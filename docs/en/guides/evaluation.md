@@ -146,6 +146,19 @@ TTS-clone models pipe `source → Whisper → text → TTS → output`. Whisper 
 - Whisper struggles with anime / pitch-shifted voices (RVC's Zundamon scores WER 1.0 even though the audio is fine — Whisper just can't read it)
 - Quiet outputs (RVC peak ~0.2 before our normalization) make Whisper drop frames
 
+## Recording results
+
+After running `evaluate_quality.py`, add your results to [`BENCHMARK.md`](../../../BENCHMARK.md) Part B. Each row must include:
+
+- Code version (`git describe --tags`)
+- Source and reference audio identifiers
+- All three metric values
+- Hardware used
+
+New rows are **appended** — never overwrite existing results. This lets us track quality across versions.
+
+If you change the metric definitions (Part A), that's a **MAJOR** version bump — see [CONTRIBUTING.md](../contributing/dev-setup.md).
+
 ## Latest scoreboard
 
 Source: 10-second English lecture clip. Reference: Demucs-separated 60-second clean clip.

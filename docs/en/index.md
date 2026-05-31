@@ -30,3 +30,7 @@ from mlx_vc.models.seed_vc import SeedVC
 vc = SeedVC()
 audio = vc.convert(source_audio="my_voice.wav", ref_audio="target_speaker.wav")
 ```
+
+## Versioning
+
+This project follows [Semantic Versioning](https://semver.org/) with [Conventional Commits](https://www.conventionalcommits.org/). Model quality metrics are tracked in [BENCHMARK.md](../../BENCHMARK.md).

@@ -32,6 +32,10 @@ Apple Silicon 上的 voice conversion 函式庫。10 個 zero-shot VC 與 voice-
 
 完整列表（含未整合的 GPT-SoVITS、Vevo 等）在[完整比較表](models.md)。
 
+## 版本管理
+
+本專案遵循 [Semantic Versioning](https://semver.org/) + [Conventional Commits](https://www.conventionalcommits.org/)。模型品質指標追蹤在 [BENCHMARK.md](../../BENCHMARK.md)。
+
 ## License
 
 MIT
