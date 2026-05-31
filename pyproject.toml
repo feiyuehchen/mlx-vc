@@ -7,7 +7,7 @@ name = "mlx-vc"
 dynamic = ["version"]
 description = "Voice conversion on Apple Silicon using MLX"
 readme = "README.md"
-license = "MIT"
+license = "Apache-2.0"
 authors = [
     {name = "Feiyueh Chen"}
 ]

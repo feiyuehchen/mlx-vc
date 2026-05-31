@@ -142,4 +142,4 @@ See [`SECURITY.md`](SECURITY.md).  Do **not** open public issues for security-se
 
 ## License
 
-By contributing, you agree your contributions will be licensed under the MIT License (see [`LICENSE`](LICENSE)).
+By contributing, you agree your contributions will be licensed under the Apache License 2.0 (see [`LICENSE`](LICENSE)).

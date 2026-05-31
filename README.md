@@ -1,7 +1,7 @@
 # mlx-vc
 
 [![Tests](https://github.com/feiyuehchen/mlx-vc/actions/workflows/tests.yml/badge.svg)](https://github.com/feiyuehchen/mlx-vc/actions/workflows/tests.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-MPS-orange.svg)](https://developer.apple.com/metal/pytorch/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
@@ -211,4 +211,6 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for commit conventions and version bump
 
 ## License
 
-MIT
+Apache 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE) for upstream model attributions.
+
+Note: Some upstream model weights (e.g. WavLM used by kNN-VC and FreeVC) carry non-commercial restrictions separate from their code license. See NOTICE for details.

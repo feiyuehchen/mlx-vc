@@ -1,0 +1,80 @@
+mlx-vc
+Copyright 2025 Feiyueh Chen
+
+This product includes software and/or model weights from the following
+third-party projects. Each model's weights are downloaded at runtime and
+are subject to their respective licenses.
+
+==========================================================================
+Seed-VC — https://github.com/Plachtaa/seed-vc
+License: MIT
+Paper: arXiv:2411.09943
+==========================================================================
+
+==========================================================================
+OpenVoice V2 — https://github.com/myshell-ai/OpenVoice
+License: MIT
+Paper: arXiv:2312.01479
+==========================================================================
+
+==========================================================================
+kNN-VC — https://github.com/bshall/knn-vc
+License: MIT
+Paper: arXiv:2305.18975
+Note: Uses WavLM (Microsoft, CC-BY-NC-4.0 for weights)
+==========================================================================
+
+==========================================================================
+FreeVC — https://github.com/OlaWod/FreeVC
+License: MIT
+Paper: arXiv:2210.15723
+Note: Uses WavLM (Microsoft, CC-BY-NC-4.0 for weights)
+==========================================================================
+
+==========================================================================
+MeanVC — https://github.com/ASLP-lab/MeanVC
+License: Apache 2.0
+Paper: Mean Flows for One-step Voice Conversion (2025)
+==========================================================================
+
+==========================================================================
+SpeechT5-VC — https://huggingface.co/microsoft/speecht5_vc
+License: MIT
+Paper: arXiv:2110.07205
+==========================================================================
+
+==========================================================================
+RVC (MLX port) — https://github.com/Acelogic/Retrieval-based-Voice-Conversion-MLX
+License: MIT
+Original: https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI
+==========================================================================
+
+==========================================================================
+Chatterbox — https://github.com/resemble-ai/chatterbox
+License: Apache 2.0
+Integration via mlx-audio (https://github.com/lucasnewman/mlx-audio)
+==========================================================================
+
+==========================================================================
+Pocket-TTS — https://huggingface.co/kyutai/pocket-tts
+License: MIT
+Integration via mlx-audio
+==========================================================================
+
+==========================================================================
+IMPORTANT: Weight License Restrictions
+--------------------------------------------------------------------------
+Some upstream model weights carry non-commercial restrictions that are
+separate from the code license:
+
+- WavLM (Microsoft): CC-BY-NC-4.0
+  Used by: kNN-VC, FreeVC
+  Impact: Commercial use of kNN-VC and FreeVC outputs may require
+  obtaining a separate license from Microsoft for WavLM weights.
+
+- BigVGAN (NVIDIA): MIT code, but check weight terms
+  Used by: Seed-VC vocoder
+
+Users are responsible for complying with the license terms of each
+upstream model and its weights for their specific use case.
+==========================================================================
